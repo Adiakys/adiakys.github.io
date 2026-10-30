@@ -1,0 +1,196 @@
+:root {
+  --ink: #f2f0ea;
+  --dim: #a9a7a0;
+  --panel: rgba(12, 13, 16, 0.86);
+  --accent: #ff5a1f;
+  --cond: "Barlow Condensed", "Arial Narrow", sans-serif;
+  --text: "Barlow", system-ui, sans-serif;
+  --gutter: clamp(16px, 2.4vw, 32px);
+}
+
+* { box-sizing: border-box; }
+
+html, body {
+  margin: 0;
+  height: 100%;
+  overflow: hidden;
+  background: #2c283a;
+  color: var(--ink);
+  font: 15px/1.45 var(--text);
+}
+
+a { color: inherit; }
+
+#track {
+  position: fixed;
+  inset: 0;
+  width: 100%;
+  height: 100%;
+  touch-action: none;
+}
+
+.panel {
+  position: fixed;
+  background: var(--panel);
+  border-left: 4px solid var(--accent);
+}
+
+/* Name and role: the first thing anyone reads. */
+.driver-card {
+  top: var(--gutter);
+  left: var(--gutter);
+  max-width: 340px;
+  padding: 14px 18px 12px;
+}
+.driver-card h1 {
+  margin: 0;
+  font: 800 34px/1 var(--cond);
+  text-transform: uppercase;
+  letter-spacing: 0.01em;
+}
+.driver-card p { margin: 8px 0 0; color: var(--dim); }
+.driver-card .links { font: 700 14px var(--cond); text-transform: uppercase; letter-spacing: 0.08em; }
+
+/* The project list, in the same order as the boards. */
+.sponsors {
+  right: var(--gutter);
+  bottom: var(--gutter);
+  width: 290px;
+  max-height: 46vh;
+  overflow: auto;
+  padding: 10px 16px 6px;
+}
+.sponsors summary {
+  cursor: pointer;
+  font: 700 13px var(--cond);
+  text-transform: uppercase;
+  letter-spacing: 0.12em;
+  color: var(--dim);
+}
+.sponsors ol { margin: 6px 0 0; padding: 0; list-style: none; }
+.sponsors li { padding: 7px 0; border-top: 1px solid rgba(242, 240, 234, 0.1); }
+.sponsors li a { font: 700 17px var(--cond); text-transform: uppercase; text-decoration: none; }
+.sponsors li a:hover { color: var(--accent); }
+.sponsors .what { display: block; color: var(--dim); font-size: 13px; }
+.sponsors .tech { font: 500 12px var(--cond); text-transform: uppercase; letter-spacing: 0.08em; color: var(--accent); }
+
+/* Timing screen. */
+.hud {
+  position: fixed;
+  top: var(--gutter);
+  right: var(--gutter);
+  text-align: right;
+  font-family: var(--cond);
+  text-transform: uppercase;
+  pointer-events: none;
+}
+.speed { font: 800 64px/0.9 var(--cond); font-variant-numeric: tabular-nums; }
+.speed small { font-size: 16px; margin-left: 6px; color: var(--dim); }
+.times {
+  display: grid;
+  grid-template-columns: auto auto;
+  gap: 0 12px;
+  margin: 8px 0 0;
+  font: 600 16px var(--cond);
+  font-variant-numeric: tabular-nums;
+}
+.times dt { color: var(--dim); font-size: 13px; letter-spacing: 0.1em; align-self: center; }
+.times dd { margin: 0; }
+.driver { margin: 6px 0 0; font: 600 13px var(--cond); letter-spacing: 0.1em; color: var(--accent); }
+.driver button, .cal button {
+  pointer-events: auto;
+  font: 700 12px var(--cond);
+  text-transform: uppercase;
+  letter-spacing: 0.1em;
+  color: var(--ink);
+  background: none;
+  border: 1px solid rgba(242, 240, 234, 0.35);
+  padding: 2px 8px;
+  margin-left: 6px;
+  cursor: pointer;
+}
+
+#minimap {
+  position: fixed;
+  left: var(--gutter);
+  bottom: var(--gutter);
+  width: 150px;
+  height: 150px;
+  pointer-events: none;
+}
+
+/* The sponsor on screen, like a TV caption. */
+.lower-third {
+  --sponsor: var(--accent);
+  position: fixed;
+  left: 50%;
+  bottom: 28vh;
+  display: grid;
+  grid-template-columns: auto auto;
+  align-items: baseline;
+  gap: 0 14px;
+  min-width: 300px;
+  padding: 10px 18px 12px;
+  background: var(--panel);
+  border-left: 8px solid var(--sponsor);
+  transform: translate(-50%, 12px);
+  opacity: 0;
+  pointer-events: none;
+  transition: opacity 0.25s, transform 0.25s;
+}
+.lower-third.on { opacity: 1; transform: translate(-50%, 0); pointer-events: auto; }
+.lower-third .kicker, .lower-third .tech {
+  font: 700 12px var(--cond);
+  text-transform: uppercase;
+  letter-spacing: 0.14em;
+  color: var(--dim);
+}
+.lower-third .tech { text-align: right; color: var(--sponsor); }
+.lower-third .title {
+  grid-column: 1 / -1;
+  font: 800 30px/1.05 var(--cond);
+  text-transform: uppercase;
+  text-decoration: none;
+}
+.lower-third .what { grid-column: 1 / -1; color: var(--dim); }
+
+.controls {
+  position: fixed;
+  left: 50%;
+  bottom: 8px;
+  transform: translateX(-50%);
+  margin: 0;
+  font: 600 12px var(--cond);
+  text-transform: uppercase;
+  letter-spacing: 0.12em;
+  color: rgba(242, 240, 234, 0.55);
+  white-space: nowrap;
+  pointer-events: none;
+}
+
+.cal {
+  top: 50%;
+  left: 50%;
+  transform: translate(-50%, -50%);
+  width: min(380px, calc(100% - 32px));
+  padding: 18px 22px;
+}
+.cal h2 { margin: 0 0 6px; font: 800 22px var(--cond); text-transform: uppercase; }
+.cal p { margin: 0 0 14px; }
+.cal button { margin: 0; }
+
+a:focus-visible, button:focus-visible, summary:focus-visible { outline: 2px solid var(--accent); outline-offset: 2px; }
+
+@media (max-width: 720px) {
+  .driver-card { right: var(--gutter); max-width: none; padding: 10px 14px; }
+  .driver-card h1 { font-size: 26px; }
+  .driver-card p { font-size: 13px; }
+  .hud { top: auto; bottom: calc(var(--gutter) + 52px); }
+  .speed { font-size: 44px; }
+  .times { display: none; }
+  #minimap { display: none; }
+  .sponsors { left: var(--gutter); right: var(--gutter); width: auto; max-height: 40vh; }
+  .sponsors:not([open]) { padding-bottom: 10px; }
+  .lower-third { bottom: auto; top: 30vh; min-width: 0; width: calc(100% - 32px); }
+  .controls { display: none; }
+}

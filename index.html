@@ -6,6 +6,10 @@
 <title>Andrea Ficarra</title>
 <meta name="description" content="Andrea Ficarra (Adiakys), senior software developer in Turin. C#, .NET and Rust.">
 <link rel="canonical" href="https://adiakys.github.io/">
+<link rel="preconnect" href="https://fonts.googleapis.com">
+<link rel="preconnect" href="https://fonts.gstatic.com" crossorigin>
+<link rel="stylesheet" href="https://fonts.googleapis.com/css2?family=Barlow+Condensed:wght@500;700;800&family=Barlow:wght@400;500&display=swap">
+<link rel="stylesheet" href="css/site.css">
 <script type="application/ld+json">
 {
   "@context": "https://schema.org",
@@ -19,27 +23,55 @@
   "sameAs": ["https://github.com/Adiakys"]
 }
 </script>
-<style>
-  :root { --bg: #fff; --fg: #111; --muted: #666; }
-  @media (prefers-color-scheme: dark) { :root { --bg: #111; --fg: #eee; --muted: #999; } }
-  body { margin: 0; background: var(--bg); color: var(--fg); font: 17px/1.6 system-ui, sans-serif; }
-  main { max-width: 600px; margin: 0 auto; padding: 48px 16px; }
-  h1 { font-size: 1.5rem; margin: 0 0 16px; }
-  a { color: inherit; }
-  ul { padding-left: 20px; }
-  footer { color: var(--muted); margin-top: 32px; }
-</style>
+<script type="module" src="js/main.js"></script>
 </head>
 <body>
-<main>
+<canvas id="track" aria-hidden="true"></canvas>
+
+<header class="panel driver-card">
   <h1>Andrea Ficarra</h1>
-  <p>Senior software developer at Sirius in Turin. I work mainly in C# and .NET, and in Rust on my own projects.</p>
-  <ul>
-    <li><a href="https://github.com/Adiakys/SimRig">SimRig</a>, sim-racing wheels and pedals on Linux, in Rust</li>
-    <li><a href="https://github.com/Adiakys/OtlpDashboard">OtlpDashboard</a>, self-hosted OpenTelemetry dashboard in .NET</li>
-    <li><a href="https://github.com/Adiakys/OpenMediator">OpenMediatR</a>, a free MediatR alternative</li>
-  </ul>
-  <footer><a href="https://github.com/Adiakys">github.com/Adiakys</a></footer>
-</main>
+  <p>Senior software developer at Sirius, Turin. I work mainly in C# and .NET, and in Rust on my own projects.</p>
+  <p class="links"><a href="https://github.com/Adiakys">GitHub</a></p>
+</header>
+
+<details class="panel sponsors" open>
+  <summary>Projects</summary>
+  <ol>
+    <li data-sponsor="simrig"><a href="https://github.com/Adiakys/SimRig">SimRig</a> <span class="what">Sim-racing wheels and pedals on Linux, any brand.</span> <span class="tech">Rust</span></li>
+    <li data-sponsor="otlp"><a href="https://github.com/Adiakys/OtlpDashboard">OtlpDashboard</a> <span class="what">Self-hosted OpenTelemetry receiver and dashboard.</span> <span class="tech">.NET, Nuxt</span></li>
+    <li data-sponsor="lucky"><a href="https://github.com/Adiakys/feeling-lucky">feeling-lucky</a> <span class="what">A casino room for any web app, with prizes you configure.</span> <span class="tech">TypeScript</span></li>
+    <li data-sponsor="mediatr"><a href="https://github.com/Adiakys/OpenMediator">OpenMediatR</a> <span class="what">A free MediatR alternative.</span> <span class="tech">.NET</span></li>
+    <li data-sponsor="gauth"><a href="https://github.com/Adiakys/GoogleLimitedInputAuth.Net">GoogleLimitedInputAuth.Net</a> <span class="what">Google sign-in for devices without a keyboard.</span> <span class="tech">.NET</span></li>
+    <li data-sponsor="vision"><a href="https://github.com/Adiakys/claude-vision">claude-vision</a> <span class="what">Lets Claude Code see your screen or webcam.</span> <span class="tech">Python</span></li>
+  </ol>
+</details>
+
+<div class="hud" aria-hidden="true">
+  <div class="speed"><span id="speed">0</span><small>km/h</small></div>
+  <dl class="times">
+    <dt>Lap</dt><dd id="lap">1</dd>
+    <dt>Time</dt><dd id="lap-time">0:00.0</dd>
+    <dt>Last</dt><dd id="lap-last">–</dd>
+    <dt>Best</dt><dd id="lap-best">–</dd>
+  </dl>
+  <p class="driver"><span id="driver">Autopilot</span> <button id="recal" type="button" hidden>Recalibrate</button></p>
+</div>
+
+<canvas id="minimap" aria-hidden="true"></canvas>
+
+<div id="lower-third" class="lower-third" aria-live="polite">
+  <span class="kicker">Sponsor</span>
+  <a class="title" href="#"></a>
+  <span class="what"></span>
+  <span class="tech"></span>
+</div>
+
+<p class="controls" aria-hidden="true">Arrows or WASD to drive. Scroll to speed up. Wheels and pedals work too.</p>
+
+<div id="cal" class="panel cal" role="dialog" aria-labelledby="cal-title" hidden>
+  <h2 id="cal-title">Wheel found</h2>
+  <p id="cal-step"></p>
+  <button id="cal-skip" type="button">Skip</button>
+</div>
 </body>
 </html>
