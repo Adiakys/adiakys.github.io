@@ -298,7 +298,7 @@ function car() {
   g.font = `800 50px ${FONT}`;
   g.textAlign = 'center';
   g.textBaseline = 'middle';
-  g.fillText('SIMRIG', 320, 68);
+  g.fillText('ADIAKYS', 320, 68);
 
   // Rain light, off; the game draws it lit when braking.
   g.fillStyle = '#3a1210';
