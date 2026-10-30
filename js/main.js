@@ -1,5 +1,7 @@
-import { buildTrack, SEG, ROAD_W, TOP, ARMCO, PIT_WALL } from './track.js';
+import { buildTrack, SEG, ROAD_W, TOP, ARMCO, PIT_WALL, BAY_W } from './track.js';
+import { repoStats } from './github.js';
 import { makeArt } from './art.js';
+import { loadBrandImages, paintBoard } from './brands.js';
 import { createInput } from './input.js';
 import { SPONSORS, readSponsorInfo } from './sponsors.js';
 
@@ -34,6 +36,9 @@ const COLORS = {
   line: '#ecebe6',
   armco: ['#c3c6ca', '#b3b6ba'],
   pitWall: ['#e9e7e1', '#dddbd5'],
+  runoff: ['#55575c', '#525459'],
+  runoffStripe: ['#2f5fd0', '#c8382c'],
+  sausage: '#f2c230',
   fog: [236, 214, 178],
 };
 
@@ -42,9 +47,11 @@ const info = readSponsorInfo();
 const reduceMotion = matchMedia('(prefers-reduced-motion: reduce)').matches;
 let art;
 
-// ?at=600 starts the car at that segment, to look at one part of the track.
-const startAt = Number(new URLSearchParams(location.search).get('at')) || 0;
-const car = { position: (startAt * SEG) % track.length, x: 0, speed: 0, bump: 0 };
+// ?at=600&x=1.5 starts the car at that segment and lateral position, to look
+// at one part of the track.
+const params = new URLSearchParams(location.search);
+const startAt = Number(params.get('at')) || 0;
+const car = { position: (startAt * SEG) % track.length, x: Number(params.get('x')) || 0, speed: 0, bump: 0 };
 const lap = { n: 1, start: 0, last: null, best: readBest(), time: 0 };
 let skyOffset = 0;
 let W = 0, H = 0;
@@ -57,6 +64,82 @@ const input = createInput({
   },
 });
 $('cal-skip').addEventListener('click', () => input.skipCalibration());
+
+// ---- Zooming onto a billboard --------------------------------------------------
+// Stopping in a bay, the tour, or a click on a billboard: the camera zooms onto
+// the project's billboard until it fills the screen. Driving off, Esc or a click
+// elsewhere zooms back out; Enter or a click on the billboard opens GitHub.
+const ZOOM_S = 0.8;
+const view = { bay: null, source: null, z: 0, dir: 0, rect: null, m: null, dismissed: null };
+const hint = $('board-hint');
+// Where the bay billboards were drawn in the last frame, in canvas pixels
+// before the zoom.
+let boardHits = [];
+let zoomEase = 0;
+
+function focus(bay, source) {
+  if (view.bay?.id === bay.id && view.dir > 0) return;
+  Object.assign(view, { bay, source, dir: 1 });
+  const i = info[bay.id];
+  hint.querySelector('.name').textContent = i.title;
+  hint.querySelector('.open').href = i.href;
+  hint.hidden = false;
+  document.body.classList.add('zoomed');
+}
+
+function unfocus(source) {
+  if (!view.bay || view.dir < 0 || (source && view.source !== source)) return;
+  if (view.source === 'bay') view.dismissed = view.bay.id;
+  view.dir = -1;
+  hint.hidden = true;
+  document.body.classList.remove('zoomed');
+}
+
+const openRepo = () => view.bay && window.open(info[view.bay.id].href, '_blank', 'noopener');
+const easeInOut = (t) => (t < 0.5 ? 4 * t * t * t : 1 - (-2 * t + 2) ** 3 / 2);
+
+// The camera move as a canvas transform: scale up around the billboard's panel
+// while sliding it to the middle of the screen.
+function zoomStep(dt) {
+  view.z = clamp(view.z + (dt / ZOOM_S) * view.dir, 0, 1);
+  if (view.z === 0 && view.dir < 0) Object.assign(view, { bay: null, dir: 0, rect: null });
+  view.m = null;
+  if (!view.bay) return 0;
+  view.rect = boardHits.findLast((h) => h.bay?.id === view.bay.id) ?? view.rect;
+  const r = view.rect;
+  if (!r) return 0;
+  const e = easeInOut(view.z);
+  const ph = r.full * r.panel;
+  const cx = r.x + r.w / 2, cy = r.y + ph / 2;
+  const target = Math.min((0.92 * W) / r.w, (0.8 * H) / ph);
+  const S = 1 + (target - 1) * e;
+  const fx = lerp(cx, W / 2, e), fy = lerp(cy, H * 0.47, e);
+  view.m = { S, tx: fx - S * cx, ty: fy - S * cy };
+  return e;
+}
+
+// Canvas pixels of a mouse event, undoing the zoom.
+function canvasPoint(e) {
+  const k = W / innerWidth;
+  let x = e.clientX * k, y = e.clientY * k;
+  if (view.m) { x = (x - view.m.tx) / view.m.S; y = (y - view.m.ty) / view.m.S; }
+  return { x, y };
+}
+const hitAt = ({ x, y }) => boardHits.findLast((b) => x >= b.x && x <= b.x + b.w && y >= b.y && y <= b.y + b.h);
+
+canvas.addEventListener('click', (e) => {
+  const hit = hitAt(canvasPoint(e));
+  if (view.bay && view.dir > 0) return hit?.bay.id === view.bay.id ? openRepo() : unfocus();
+  if (hit) focus(hit.bay, 'click');
+});
+canvas.addEventListener('mousemove', (e) => {
+  canvas.style.cursor = hitAt(canvasPoint(e)) ? 'pointer' : '';
+});
+addEventListener('keydown', (e) => {
+  if (!view.bay || view.dir < 0) return;
+  if (e.key === 'Escape') unfocus();
+  if (e.key === 'Enter' && e.target === document.body) openRepo();
+});
 $('recal').addEventListener('click', () => input.recalibrate());
 
 function resize() {
@@ -76,8 +159,38 @@ const segAt = (z) => track.segments[Math.floor(z / SEG) % track.segments.length]
 // The fastest a corner can be taken with the wheel at full lock, with a margin.
 const cornerSpeed = (curve) => Math.min(MAX_SPEED, (0.85 * MAX_SPEED) / (Math.abs(curve) * CENTRIFUGAL || 1e-6));
 
-function autopilot(seg, sp) {
+// When nobody drives, the autopilot gives a tour: it pulls into every bay,
+// zooms onto the billboard for a while, then carries on. Once per lap.
+const TOUR_STOP_MS = 7000;
+const tour = { visited: new Set(), stop: null, until: 0 };
+
+function nextBay(seg) {
+  const n = track.segments.length;
+  let best = null, bestDist = Infinity;
+  for (const b of track.bays) {
+    if (tour.visited.has(b.id)) continue;
+    const d = (b.stop - seg.index + n) % n;
+    if (d < bestDist && d < 260) { best = b; bestDist = d; }
+  }
+  return best && { bay: best, dist: bestDist };
+}
+
+// The autopilot drives like a person: the line it aims for moves gradually,
+// the wheel turns at a human rate, throttle and brake are squeezed, not stamped.
+const pilot = { aim: 0, steer: 0 };
+
+function autopilot(seg, sp, now, dt) {
   const scroll = input.scroll();
+  if (tour.stop) {
+    pilot.aim = car.x;
+    pilot.steer = approach(pilot.steer, 0, dt * 4);
+    if (now < tour.until && scroll < 0.3) return { steer: pilot.steer, throttle: 0, brake: 1 };
+    tour.visited.add(tour.stop.id);
+    unfocus('tour');
+    tour.stop = null;
+  }
+  const next = nextBay(seg);
+  let aimX = 0;
   const cruise = reduceMotion && Math.abs(scroll) < 0.05 ? 0 : 0.7 + Math.max(0, scroll) * 0.3;
   // Brake in time for whatever is coming: v² = v_corner² + 2·a·distance.
   let target = MAX_SPEED * cruise;
@@ -87,19 +200,49 @@ function autopilot(seg, sp) {
     if (Math.abs(c) < 0.3) continue;
     target = Math.min(target, Math.sqrt(cornerSpeed(c) ** 2 + 2 * (-BRAKING * 0.5) * i * SEG));
   }
+  if (next && !reduceMotion) {
+    const { bay, dist } = next;
+    // Ease towards the middle of the bay and stop at its centre.
+    // Hug the road edge on the way in, move over once the bay opens up, and
+    // keep rolling until the car is right inside: steering needs some speed.
+    const inside = seg.bay?.id === bay.id;
+    if (dist < 160) aimX = bay.side * (inside ? 1 + BAY_W * 0.5 * seg.bay.open : 0.85);
+    const floor = inside && Math.abs(aimX - car.x) > 0.15 ? 0.12 : 0.04;
+    target = Math.min(target, Math.max(MAX_SPEED * floor, Math.sqrt(2 * (-BRAKING * 0.3) * dist * SEG)));
+    if (dist < 3 || (seg.bay?.id === bay.id && dist > track.segments.length / 2)) {
+      if (car.speed < MAX_SPEED * 0.05) {
+        tour.stop = bay;
+        tour.until = now + TOUR_STOP_MS;
+        focus(bay, 'tour');
+      }
+      target = 0;
+    }
+  }
+  pilot.aim = approach(pilot.aim, aimX, dt * 1.3);
+  const want = clamp(sp * seg.curve * CENTRIFUGAL + (pilot.aim - car.x) * 1.2, -1, 1);
+  pilot.steer = approach(pilot.steer, want, dt * 4);
+  const gap = target - car.speed;
   return {
-    steer: clamp(sp * seg.curve * CENTRIFUGAL - car.x * 1.5, -1, 1),
-    throttle: car.speed < target ? 1 : 0,
-    brake: car.speed > target * 1.05 || scroll < -0.3 ? 0.7 : 0,
+    steer: pilot.steer,
+    throttle: clamp(gap / (MAX_SPEED * 0.08), 0, 1),
+    brake: target === 0 ? 0.6 : scroll < -0.3 ? 0.7 : clamp(-gap / (MAX_SPEED * 0.15), 0, 1),
   };
 }
 
-function update(dt) {
+function update(dt, now) {
   input.update(dt);
   const seg = segAt(car.position + PLAYER_Z);
   const sp = car.speed / MAX_SPEED;
   const auto = input.idle();
-  const c = auto ? autopilot(seg, sp) : input.state;
+  if (!auto && tour.stop) { tour.stop = null; unfocus('tour'); }
+  // A billboard you clicked holds the race until you zoom back out; any input does.
+  if (view.bay && view.source === 'click') {
+    const s = input.state;
+    if (!auto && (s.throttle > 0.1 || s.brake > 0.1 || Math.abs(s.steer) > 0.3)) unfocus('click');
+    return { seg, c: { steer: 0, throttle: 0, brake: 0 }, auto };
+  }
+  if (!auto) Object.assign(pilot, { aim: car.x, steer: input.state.steer });
+  const c = auto ? autopilot(seg, sp, now, dt) : input.state;
 
   const dx = dt * 2 * sp;
   car.x += dx * c.steer;
@@ -108,7 +251,16 @@ function update(dt) {
   if (c.throttle > 0) car.speed += ACCEL * c.throttle * dt;
   else car.speed += DECEL * dt;
   car.speed += BRAKING * c.brake * dt;
-  if (Math.abs(car.x) > 1 && car.speed > OFFROAD_LIMIT) car.speed += (seg.gravel ? GRAVEL_DECEL : OFFROAD_DECEL) * dt;
+  // A bay widens the road on its side.
+  const inBay = seg.bay && Math.sign(car.x) === seg.bay.side;
+  const edge = inBay ? 1 + BAY_W * seg.bay.open : 1;
+  if (Math.abs(car.x) > edge && car.speed > OFFROAD_LIMIT) car.speed += (seg.gravel ? GRAVEL_DECEL : OFFROAD_DECEL) * dt;
+
+  // Stopped in a bay: show its project. Driving off closes it.
+  const kmh = sp * TOP_KMH;
+  if (seg.bay?.id !== view.dismissed) view.dismissed = null;
+  if (!auto && inBay && Math.abs(car.x) > 1.05 && kmh < 8 && c.throttle < 0.1 && view.dismissed !== seg.bay.id) focus(seg.bay, 'bay');
+  if (c.throttle > 0.1 || kmh > 20) unfocus('bay');
 
   const wall = (car.x < 0 ? barrier(seg, -1) : ARMCO).at - CAR_HALF;
   if (Math.abs(car.x) > wall) {
@@ -129,6 +281,7 @@ function update(dt) {
     lap.last = lap.time;
     lap.time = 0;
     lap.n++;
+    tour.visited.clear();
   }
   return { seg, c, auto };
 }
@@ -156,6 +309,10 @@ function quad(x1, y1, w1, x2, y2, w2, color) {
   ctx.fill();
 }
 
+// Full-width fills reach this many screen widths past each edge, so the zoom
+// never shows past the end of the world.
+const SPAN = 3;
+
 const fogAt = (n) => 1 - Math.exp(-((n / DRAW) ** 2) * 3.2);
 const fogStyle = (a) => `rgba(${COLORS.fog.join(',')},${a.toFixed(3)})`;
 
@@ -165,9 +322,9 @@ function drawSky(playerY) {
   sky.addColorStop(0.55, '#b7c3cc');
   sky.addColorStop(1, '#f1cf9f');
   ctx.fillStyle = sky;
-  ctx.fillRect(0, 0, W, H / 2 + 2);
+  ctx.fillRect(-SPAN * W, -SPAN * H, (2 * SPAN + 1) * W, (SPAN + 0.5) * H + 2);
   ctx.fillStyle = 'rgb(' + COLORS.fog.join(',') + ')';
-  ctx.fillRect(0, H / 2, W, H / 2);
+  ctx.fillRect(-SPAN * W, H / 2, (2 * SPAN + 1) * W, (SPAN + 0.5) * H);
 
   // The higher the car, the lower the hills sit under the horizon.
   const lift = playerY / TOP;
@@ -177,8 +334,8 @@ function drawSky(playerY) {
 
 function layer(img, speed, bottom, height) {
   const w = (img.width * height) / img.height;
-  let x = -(((skyOffset * speed * W) % w) + w) % w;
-  for (; x < W; x += w) ctx.drawImage(img, x, bottom - height, w + 1, height);
+  let x = -(((skyOffset * speed * W) % w) + w) % w - Math.ceil((SPAN * W) / w) * w;
+  for (; x < (SPAN + 1) * W; x += w) ctx.drawImage(img, x, bottom - height, w + 1, height);
 }
 
 function drawRoad() {
@@ -189,6 +346,7 @@ function drawRoad() {
   const playerY = lerp(player.p1.world.y, player.p2.world.y, playerPct);
 
   drawSky(playerY);
+  boardHits = [];
 
   let maxy = H;
   let x = 0;
@@ -212,7 +370,9 @@ function drawRoad() {
 
   for (let i = DRAW - 1; i > 0; i--) {
     const s = track.segments[(base.index + i) % n];
-    for (const sp of s.sprites) sprite(s, sp);
+    // Zoomed on a billboard, whatever stands between it and the camera fades away.
+    const clear = view.bay && i < (view.bay.board - base.index + n) % n ? 1 - zoomEase : 1;
+    for (const sp of s.sprites) if (clear > 0.02 || sp.big) sprite(s, sp, sp.big ? 1 : clear);
     if (s.visible) { wall(s, -1); wall(s, 1); }
   }
   return playerY;
@@ -223,15 +383,27 @@ function segment(s) {
   const k = s.dark ? 1 : 0;
 
   ctx.fillStyle = COLORS.grass[k];
-  ctx.fillRect(0, b.y, W, a.y - b.y);
+  ctx.fillRect(-SPAN * W, b.y, (2 * SPAN + 1) * W, a.y - b.y);
   // Gravel traps around the slow corners, out to the armco.
   if (s.gravel) quad(a.x, a.y, a.w * ARMCO.at, b.x, b.y, b.w * ARMCO.at, COLORS.gravel[k]);
+  // Asphalt run-off with painted stripes around the fast ones.
+  else if (Math.abs(s.curve) > 0.8) {
+    quad(a.x, a.y, a.w * ARMCO.at, b.x, b.y, b.w * ARMCO.at, COLORS.runoff[k]);
+    quad(a.x, a.y, a.w * 1.45, b.x, b.y, b.w * 1.45, COLORS.runoffStripe[k]);
+  }
+  if (s.bay) bay(s, a, b);
 
   quad(a.x, a.y, a.w, b.x, b.y, b.w, COLORS.road[k]);
   if (Math.abs(s.curve) > 0.8) {
     const r1 = a.w / 7, r2 = b.w / 7;
     quad(a.x - a.w - r1 / 2, a.y, r1 / 2, b.x - b.w - r2 / 2, b.y, r2 / 2, COLORS.kerb[k]);
     quad(a.x + a.w + r1 / 2, a.y, r1 / 2, b.x + b.w + r2 / 2, b.y, r2 / 2, COLORS.kerb[k]);
+    // Sausage kerbs behind the chicane kerbs, to stop the cutting.
+    if (s.radius <= 9) {
+      const o1 = a.w + r1 + a.w / 30, o2 = b.w + r2 + b.w / 30;
+      quad(a.x - o1, a.y, a.w / 30, b.x - o2, b.y, b.w / 30, COLORS.sausage);
+      quad(a.x + o1, a.y, a.w / 30, b.x + o2, b.y, b.w / 30, COLORS.sausage);
+    }
   } else {
     const l1 = a.w / 40, l2 = b.w / 40;
     quad(a.x - a.w + l1, a.y, l1, b.x - b.w + l2, b.y, l2, COLORS.line);
@@ -256,7 +428,41 @@ function segment(s) {
 
   if (s.fog > 0.01) {
     ctx.fillStyle = fogStyle(s.fog);
-    ctx.fillRect(0, b.y, W, a.y - b.y);
+    ctx.fillRect(-SPAN * W, b.y, (2 * SPAN + 1) * W, a.y - b.y);
+  }
+}
+
+// The bay: asphalt widening on one side, a dashed line where the track ends.
+function bay(s, a, b) {
+  const { side, open } = s.bay;
+  const next = track.segments[(s.index + 1) % track.segments.length].bay;
+  const open2 = next && next.id === s.bay.id ? next.open : 0;
+  const k = s.dark ? 1 : 0;
+  const ea = a.x + side * a.w, eb = b.x + side * b.w;
+  const fa = a.x + side * a.w * (1 + BAY_W * open), fb = b.x + side * b.w * (1 + BAY_W * open2);
+  ctx.fillStyle = COLORS.road[k];
+  ctx.beginPath();
+  ctx.moveTo(ea, a.y); ctx.lineTo(eb, b.y); ctx.lineTo(fb, b.y); ctx.lineTo(fa, a.y);
+  ctx.fill();
+  const l1 = a.w / 40, l2 = b.w / 40;
+  // Dashed where you turn in, solid where the bay ends.
+  if (!s.dark) quad(ea, a.y, l1, eb, b.y, l2, COLORS.line);
+  quad(fa - side * l1, a.y, l1, fb - side * l2, b.y, l2, COLORS.line);
+  // The stopping box, painted in the middle of the bay.
+  const d = s.index - s.bay.stop;
+  if (Math.abs(d) <= 6) {
+    const c = 1.4, half = 0.36;   // where the tour actually stops
+    for (const o of [c - half, c + half]) {
+      const xa = a.x + side * a.w * o, xb = b.x + side * b.w * o;
+      quad(xa, a.y, l1, xb, b.y, l2, COLORS.line);
+    }
+    if (Math.abs(d) === 6) {
+      ctx.fillStyle = COLORS.line;
+      ctx.beginPath();
+      const p = [c - half, c + half].map((o) => [a.x + side * a.w * o, b.x + side * b.w * o]);
+      ctx.moveTo(p[0][0], a.y); ctx.lineTo(p[0][1], b.y); ctx.lineTo(p[1][1], b.y); ctx.lineTo(p[1][0], a.y);
+      ctx.fill();
+    }
   }
 }
 
@@ -280,22 +486,26 @@ function wall(s, side) {
   if (s.fog > 0.01) { ctx.fillStyle = fogStyle(s.fog); ctx.fill(); }
 }
 
-function sprite(s, sp) {
+function sprite(s, sp, alpha = 1) {
   const a = s.p1.screen;
   if (s.p1.camera.z <= CAM_DEPTH) return;
-  const kind = sp.kind === 'board' ? art.boards[sp.id] : art[sp.kind];
+  const kind =
+    sp.kind === 'board' ? art.bigBoards[sp.id]
+    : sp.kind === 'hoarding' ? art.hoardings[sp.id]
+    : art[sp.kind];
   const img = kind.img;
   const w = kind.w * a.scale * W / 2;
   const h = (w * img.height) / img.width;
-  const x = a.x + sp.offset * a.w * 1 + (sp.offset < 0 ? -w : 0);
+  const x = a.x + sp.offset * a.w + (sp.center ? -w / 2 : sp.offset < 0 ? -w : 0);
   const y = a.y - h;
   const hidden = Math.max(0, y + h - s.clip);
   if (hidden >= h || w < 1) return;
   const srcH = img.height * (1 - hidden / h);
   // Fade into the haze; a fog rectangle would show around the transparent edges.
-  ctx.globalAlpha = 1 - s.fog * 0.9;
+  ctx.globalAlpha = (1 - s.fog * 0.9) * alpha;
   ctx.drawImage(img, 0, 0, img.width, srcH, x, y, w, h - hidden);
   ctx.globalAlpha = 1;
+  if (sp.big && w > 20) boardHits.push({ x, y, w, h: h - hidden, full: h, panel: kind.panel, bay: track.bays.find((b) => b.id === sp.id) });
 }
 
 function drawCar(c) {
@@ -346,7 +556,7 @@ function drawMinimap() {
   mctx.stroke();
 
   const [cx, cz] = at(pts[Math.floor(car.position / SEG) % pts.length]);
-  mctx.fillStyle = SPONSORS.simrig.bg;
+  mctx.fillStyle = SPONSORS.simrig.accent;
   mctx.beginPath();
   mctx.arc(cx, cz, w * 0.045, 0, Math.PI * 2);
   mctx.fill();
@@ -367,7 +577,7 @@ function cornerBanner(seg, now) {
   if (!corner) { box.classList.remove('on'); return; }
   const i = corner.id ? info[corner.id] : null;
   const link = box.querySelector('.sponsor');
-  box.style.setProperty('--sponsor', corner.id ? SPONSORS[corner.id].bg : 'var(--ink)');
+  box.style.setProperty('--sponsor', corner.id ? SPONSORS[corner.id].accent : 'var(--ink)');
   box.querySelector('.number').textContent = `T${corner.number}`;
   box.querySelector('.name').textContent = corner.name;
   link.hidden = !i;
@@ -437,9 +647,12 @@ let last = performance.now();
 function frame(now) {
   const dt = Math.min(0.05, (now - last) / 1000);
   last = now;
-  const { seg, c, auto } = update(dt);
+  const { seg, c, auto } = update(dt, now);
+  const zoom = (zoomEase = zoomStep(dt));
+  if (view.m) ctx.setTransform(view.m.S, 0, 0, view.m.S, view.m.tx, view.m.ty);
   drawRoad();
-  drawCar(c);
+  if (zoom < 0.4) drawCar(c);
+  ctx.setTransform(1, 0, 0, 1, 0, 0);
   drawMinimap();
   cornerBanner(seg, now);
   hud(auto, c);
@@ -447,10 +660,17 @@ function frame(now) {
 }
 
 const clamp = (v, a, b) => Math.max(a, Math.min(b, v));
+const approach = (v, t, step) => (v < t ? Math.min(t, v + step) : Math.max(t, v - step));
 const lerp = (a, b, t) => a + (b - a) * t;
 
-document.fonts.load('800 100px "Barlow Condensed"').catch(() => {}).finally(() => {
-  art = makeArt();
+const fonts = ['800 100px "Barlow Condensed"', '700 40px "Barlow Condensed"', '500 40px Barlow', '800 40px Barlow',
+  'italic 500 40px Barlow', '800 40px "JetBrains Mono"', '500 40px "JetBrains Mono"', '40px Limelight'];
+Promise.all([loadBrandImages(), ...fonts.map((f) => document.fonts.load(f).catch(() => {}))]).then(([images]) => {
+  art = makeArt(info, images);
+  // The billboards are painted with the page's text at once, then again with
+  // the live numbers from GitHub when they come.
+  for (const [id, board] of Object.entries(art.bigBoards))
+    repoStats(info[id].href).then((stats) => stats && paintBoard(board.img, id, info[id], stats, images));
   if (innerWidth < 1100) document.querySelector('.sponsors').open = false;
   resize();
   document.body.classList.add('ready');

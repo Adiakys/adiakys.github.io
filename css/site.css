@@ -126,6 +126,30 @@ a { color: inherit; }
 .corner .sponsor[hidden] { display: none; }
 .corner .tech { font: 700 12px var(--cond); text-transform: uppercase; letter-spacing: 0.1em; color: var(--sponsor, var(--accent)); }
 
+/* While the camera is on a billboard: the HUD steps aside, a line says what to do. */
+.timing, .driver-card, .dash, .sponsors, .controls { transition: opacity 0.4s; }
+.zoomed .timing, .zoomed .driver-card, .zoomed .corner, .zoomed .dash, .zoomed .sponsors, .zoomed .controls { opacity: 0; pointer-events: none; }
+.board-hint {
+  position: fixed;
+  left: 50%;
+  bottom: var(--gutter);
+  transform: translateX(-50%);
+  display: flex;
+  align-items: center;
+  gap: 10px;
+  margin: 0;
+  padding: 8px 16px;
+  background: var(--panel);
+  font: 700 14px var(--cond);
+  text-transform: uppercase;
+  letter-spacing: 0.08em;
+  white-space: nowrap;
+}
+.board-hint[hidden] { display: none; }
+.board-hint .open { color: var(--accent); }
+.board-hint .back { color: var(--dim); margin-left: 8px; }
+.board-hint kbd { padding: 1px 6px; border: 1px solid rgba(242, 240, 234, 0.35); font: 600 11px var(--cond); color: var(--dim); }
+
 /* Bottom right: the track map over the dash. */
 .dash {
   position: fixed;
@@ -168,12 +192,11 @@ a { color: inherit; }
   left: var(--gutter);
   bottom: var(--gutter);
   width: 290px;
-  max-height: 40vh;
-  overflow: auto;
   padding: 10px 16px 6px;
 }
 .sponsors summary { cursor: pointer; }
-.sponsors ol { margin: 6px 0 0; padding: 0; list-style: none; }
+/* Only the list scrolls; the heading stays put. */
+.sponsors ol { max-height: calc(40vh - 40px); overflow: auto; margin: 6px 0 0; padding: 0; list-style: none; }
 .sponsors li { padding: 7px 0; border-top: 1px solid rgba(242, 240, 234, 0.1); }
 .sponsors li a { font: 700 17px var(--cond); text-transform: uppercase; text-decoration: none; }
 .sponsors li a:hover { color: var(--accent); }
@@ -225,6 +248,7 @@ a:focus-visible, button:focus-visible, summary:focus-visible { outline: 2px soli
   .corner { top: 44%; left: var(--gutter); right: var(--gutter); max-width: none; transform: translateY(-8px); }
   .corner.on { transform: none; }
   .corner .turn { font-size: 20px; }
+  .board-hint kbd, .board-hint .back { display: none; }
   .dash { left: var(--gutter); bottom: calc(var(--gutter) + 52px); width: auto; }
   #minimap { display: none; }
   .gear { font-size: 52px; }

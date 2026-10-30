@@ -1,12 +1,13 @@
 // The projects, as sponsors. The same list is in index.html as plain links;
-// the track reads the ids from there and the board colours from here.
+// the track reads the ids from there. Each brand's billboards are painted in
+// brands.js; the accent is its colour in the HUD and on the garage doors.
 export const SPONSORS = {
-  simrig: { name: 'SIMRIG', bg: '#ff5a1f', fg: '#14110f', tag: 'RUST' },
-  otlp: { name: 'OTLP DASHBOARD', bg: '#2f6bff', fg: '#ffffff', tag: '.NET' },
-  mediatr: { name: 'OPENMEDIATR', bg: '#f2f0ea', fg: '#14110f', tag: '.NET' },
-  lucky: { name: 'FEELING LUCKY', bg: '#0f7a4a', fg: '#f6e7b0', tag: 'TS' },
-  gauth: { name: 'LIMITEDINPUTAUTH', bg: '#1b1d22', fg: '#f2f0ea', tag: '.NET' },
-  vision: { name: 'CLAUDE VISION', bg: '#d4a373', fg: '#14110f', tag: 'PY' },
+  simrig: { accent: '#ff5a1f' },
+  otlp: { accent: '#7aa2ff' },
+  mediatr: { accent: '#29a8e0' },
+  lucky: { accent: '#e8c766' },
+  gauth: { accent: '#c9a8f0' },
+  vision: { accent: '#e5484d' },
 };
 
 export function readSponsorInfo() {

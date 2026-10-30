@@ -1,6 +1,8 @@
-// Everything drawn once at start-up onto offscreen canvases: the boards,
-// the Langhe around the track, the skyline and the car.
+// Everything drawn once at start-up onto offscreen canvases: the Langhe
+// around the track, the circuit's furniture, the skyline and the car. The
+// sponsors' billboards come from brands.js.
 import { SPONSORS } from './sponsors.js';
+import { BOARD, paintBoard, paintHoarding } from './brands.js';
 
 const FONT = '"Barlow Condensed", "Arial Narrow", sans-serif';
 
@@ -11,47 +13,35 @@ function canvas(w, h) {
   return [c, c.getContext('2d')];
 }
 
-// World sizes are in the same units as the road.
-export function makeArt() {
-  const boards = {};
-  for (const [id, s] of Object.entries(SPONSORS)) boards[id] = { img: board(s), w: 2600 };
+// World sizes are in the same units as the road. `info` is the project list
+// from the page, written onto the bay billboards; `images` what brands.js loaded.
+export function makeArt(info, images) {
+  const bigBoards = {}, hoardings = {};
+  for (const id of Object.keys(SPONSORS)) {
+    if (info[id]) bigBoards[id] = { img: paintBoard(canvas(BOARD.w, BOARD.h)[0], id, info[id], null, images), w: 4800, panel: BOARD.panel };
+    hoardings[id] = { img: paintHoarding(id), w: 2600 };
+  }
   return {
-    boards,
+    bigBoards,
+    hoardings,
+    bridge: { img: bridge(), w: 2 * 2000 * 2.95 },
+    garage: { img: garage(), w: 6400 },
+    tyres: { img: tyres(), w: 520 },
+    marshal: { img: marshal(), w: 900 },
+    brake150: { img: brakeBoard('150'), w: 520 },
+    brake100: { img: brakeBoard('100'), w: 520 },
+    brake50: { img: brakeBoard('50'), w: 520 },
+    crowd: { img: crowd(), w: 2600 },
     tree: { img: tree(), w: 1700 },
     cypress: { img: cypress(), w: 700 },
     vines: { img: vines(), w: 3200 },
     farm: { img: farm(), w: 5200 },
-    stand: { img: stand(), w: 9000 },
+    stand: { img: stand(), w: 9600 },
     tower: { img: tower(), w: 9000 },
     alps: alps(),
     hills: hills(),
     car: car(),
   };
-}
-
-function board(s) {
-  const [c, g] = canvas(1024, 400);
-  g.fillStyle = '#2b2d31';
-  g.fillRect(150, 280, 26, 120);
-  g.fillRect(848, 280, 26, 120);
-  g.fillStyle = '#0c0d10';
-  g.fillRect(0, 0, 1024, 290);
-  g.fillStyle = s.bg;
-  g.fillRect(10, 10, 1004, 270);
-
-  let size = 210;
-  g.font = `800 ${size}px ${FONT}`;
-  while (g.measureText(s.name).width > 860 && size > 60) g.font = `800 ${(size -= 6)}px ${FONT}`;
-  g.fillStyle = s.fg;
-  g.textAlign = 'center';
-  g.textBaseline = 'middle';
-  g.fillText(s.name, 512, 152);
-
-  g.font = `700 40px ${FONT}`;
-  g.textAlign = 'right';
-  g.globalAlpha = 0.7;
-  g.fillText(s.tag, 990, 250);
-  return c;
 }
 
 function tree() {
@@ -117,23 +107,133 @@ function farm() {
   return c;
 }
 
-function stand() {
-  const [c, g] = canvas(1024, 380);
+// Over the main straight, like the Dunlop bridge.
+function bridge() {
+  const [c, g] = canvas(1200, 260);
   g.fillStyle = '#d9d6cf';
-  g.fillRect(0, 40, 1024, 18);
+  g.fillRect(0, 40, 46, 220);
+  g.fillRect(1154, 40, 46, 220);
+  g.fillStyle = '#14110f';
+  g.fillRect(0, 20, 1200, 100);
+  g.fillStyle = '#ff5a1f';
+  g.fillRect(0, 112, 1200, 10);
+  g.font = `800 92px ${FONT}`;
+  g.textAlign = 'center';
+  g.textBaseline = 'middle';
+  g.fillText('ADIAKYS', 600, 72);
   g.fillStyle = '#9da1a6';
-  for (const x of [20, 500, 990]) g.fillRect(x, 58, 14, 322);
+  for (let x = 0; x < 1200; x += 40) g.fillRect(x, 0, 4, 20);
+  g.fillRect(0, 0, 1200, 4);
+  return c;
+}
+
+// The main grandstand: a roof on columns over rows of people.
+function stand() {
+  const [c, g] = canvas(1024, 420);
+  g.fillStyle = '#e9e7e1';
+  g.beginPath(); g.moveTo(0, 30); g.lineTo(1024, 30); g.lineTo(1024, 60); g.lineTo(0, 74); g.fill();
+  g.fillStyle = '#ff5a1f';
+  g.fillRect(0, 60, 1024, 14);
+  g.fillStyle = '#9da1a6';
+  for (const x of [30, 350, 670, 990]) g.fillRect(x, 74, 12, 346);
   const r = rng(5);
-  const colors = ['#f2f0ea', '#ff5a1f', '#2f6bff', '#e8c547', '#c44', '#3a3f46'];
-  for (let row = 0; row < 9; row++) {
-    const y = 90 + row * 30;
-    g.fillStyle = '#5d6168';
+  const colors = ['#f2f0ea', '#ff5a1f', '#2f6bff', '#e8c547', '#c44', '#3a3f46', '#0f7a4a'];
+  for (let row = 0; row < 10; row++) {
+    const y = 110 + row * 30;
+    g.fillStyle = row % 2 ? '#5d6168' : '#666a71';
     g.fillRect(0, y + 18, 1024, 12);
     for (let x = 6; x < 1020; x += 13) {
-      if (r() < 0.25) continue;
+      if (r() < 0.2) continue;
       g.fillStyle = colors[Math.floor(r() * colors.length)];
-      g.fillRect(x, y + 4 - row * 0.5, 8, 14);
+      g.fillRect(x, y + 3, 8, 15);
     }
+  }
+  g.fillStyle = '#3a3f46';
+  g.fillRect(0, 400, 1024, 20);
+  return c;
+}
+
+// Pit garages: a long building, roller doors in the projects' colours.
+function garage() {
+  const [c, g] = canvas(1024, 300);
+  g.fillStyle = '#e9e7e1';
+  g.fillRect(0, 40, 1024, 260);
+  g.fillStyle = '#14110f';
+  g.fillRect(0, 40, 1024, 40);
+  g.fillStyle = '#ff5a1f';
+  g.font = `800 32px ${FONT}`;
+  g.textBaseline = 'middle';
+  g.fillText('PIT', 20, 61);
+  const doors = Object.values(SPONSORS).map((s) => s.accent);
+  for (let i = 0; i < 5; i++) {
+    const x = 30 + i * 200;
+    g.fillStyle = '#2b2d31';
+    g.fillRect(x, 120, 170, 180);
+    g.fillStyle = doors[i % doors.length];
+    g.fillRect(x + 8, 128, 154, 20);
+    g.fillStyle = 'rgba(255,255,255,0.06)';
+    for (let y = 152; y < 300; y += 12) g.fillRect(x + 8, y, 154, 4);
+  }
+  return c;
+}
+
+// A stack of tyres, bolted together, red and white.
+function tyres() {
+  const [c, g] = canvas(200, 160);
+  for (let row = 0; row < 3; row++) {
+    for (let col = 0; col < 3; col++) {
+      const x = 34 + col * 66, y = 130 - row * 46;
+      g.fillStyle = (row + col) % 2 ? '#f2f0ea' : '#d63a2f';
+      g.beginPath(); g.ellipse(x, y, 32, 24, 0, 0, Math.PI * 2); g.fill();
+      g.fillStyle = '#1b1c1f';
+      g.beginPath(); g.ellipse(x, y, 13, 9, 0, 0, Math.PI * 2); g.fill();
+    }
+  }
+  return c;
+}
+
+function marshal() {
+  const [c, g] = canvas(200, 260);
+  g.fillStyle = '#e9e7e1';
+  g.fillRect(30, 70, 140, 190);
+  g.fillStyle = '#f39c12';
+  g.fillRect(30, 70, 140, 30);
+  g.fillStyle = '#3b3f46';
+  g.fillRect(50, 120, 100, 50);
+  g.fillStyle = '#9da1a6';
+  g.fillRect(160, 0, 6, 70);
+  g.fillStyle = '#ffd400';
+  g.fillRect(166, 4, 30, 22);
+  return c;
+}
+
+function brakeBoard(text) {
+  const [c, g] = canvas(140, 360);
+  g.fillStyle = '#9da1a6';
+  g.fillRect(64, 120, 12, 240);
+  g.fillStyle = '#f2f0ea';
+  g.fillRect(0, 0, 140, 130);
+  g.fillStyle = '#14110f';
+  g.fillRect(6, 6, 128, 118);
+  g.fillStyle = '#f2f0ea';
+  g.font = `800 ${text.length > 2 ? 64 : 80}px ${FONT}`;
+  g.textAlign = 'center';
+  g.textBaseline = 'middle';
+  g.fillText(text, 70, 68);
+  return c;
+}
+
+// People sitting on the grass bank.
+function crowd() {
+  const [c, g] = canvas(600, 120);
+  const r = rng(9);
+  const colors = ['#f2f0ea', '#ff5a1f', '#2f6bff', '#e8c547', '#c44', '#3a3f46'];
+  for (let i = 0; i < 70; i++) {
+    const x = 10 + r() * 580, y = 40 + r() * 70;
+    g.fillStyle = colors[Math.floor(r() * colors.length)];
+    g.fillRect(x, y, 10, 14);
+    g.fillStyle = '#e0b48a';
+    g.beginPath(); g.arc(x + 5, y - 4, 4.5, 0, Math.PI * 2); g.fill();
   }
   return c;
 }
@@ -240,7 +340,7 @@ function hills() {
 function car() {
   const [c, g] = canvas(640, 300);
   const black = '#121316';
-  const orange = SPONSORS.simrig.bg;
+  const orange = SPONSORS.simrig.accent;
 
   // Shadow.
   g.fillStyle = 'rgba(0,0,0,0.45)';

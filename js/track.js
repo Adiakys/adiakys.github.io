@@ -52,6 +52,12 @@ export const TOP = 31 * UNITS;
 export const ARMCO = { at: 2.7, h: 110 };
 export const PIT_WALL = { at: 1.6, h: 260 };
 
+// A bay is a lay-by next to a project's billboard: stop in it to read about
+// the project. It widens the road by BAY_W half road widths on one side.
+export const BAY_W = 1.4;
+const BAY_LEN = 40;                  // segments, about 48 m
+const BAY_TAPER = 8;                 // segments to widen and narrow again
+
 // How much a corner of radius r bends the road on screen. True to the radius
 // the hairpin would whip off the screen; this keeps slow corners slow and readable.
 const bend = (r) => 26 / Math.sqrt(r);
@@ -88,8 +94,10 @@ export function buildTrack() {
       p1: { world: { y: 0, z: n * SEG }, camera: {}, screen: {} },
       p2: { world: { y: 0, z: (n + 1) * SEG }, camera: {}, screen: {} },
       curve: p.k ? Math.sign(p.k) * bend(1 / Math.abs(p.k)) : 0,
+      radius: p.k ? 1 / Math.abs(p.k) : Infinity,
       gravel: !!p.k && 1 / Math.abs(p.k) < 45,
       straight: p.main,
+      bay: null,
       corner: named.find((c) => d >= c.from - 70 && d < c.from + 40) ?? null,
       dark: Math.floor(n / RUMBLE) % 2 === 1,
       sprites: [],
@@ -110,9 +118,10 @@ export function buildTrack() {
 
   smoothCurves(segments);
   heights(segments, named, total);
-  scenery(segments);
+  const bays = layBays(segments, named);
+  scenery(segments, named, bays);
 
-  return { segments, corners: named, length: count * SEG, metres: total, map };
+  return { segments, corners: named, bays, length: count * SEG, metres: total, map };
 }
 
 // The polygon as straights and arcs, starting with the first corner's arc.
@@ -186,24 +195,106 @@ function rng(seed) {
   return () => ((seed = (seed * 16807) % 2147483647) / 2147483647);
 }
 
-function scenery(segments) {
-  const r = rng(11);
-  const add = (s, kind, offset, id = null) => s.sprites.push({ kind, offset, id });
+// One bay per project corner, on the nearest stretch that stays straight
+// for the whole bay, outside the corner. On the main straight it goes right,
+// away from the pit wall.
+function layBays(segments, named) {
+  const n = segments.length;
+  const taken = new Set();
+  const bays = [];
+  for (const c of named.filter((c) => c.id)) {
+    const at = Math.round(c.from / M);
+    let best = null;
+    for (let d = 0; d < 160 && !best; d++) {
+      for (const start of [at + d, at - d - BAY_LEN]) {
+        const window = Array.from({ length: BAY_LEN + 4 }, (_, i) => (start - 2 + i + n) % n);
+        // Straight, or bending so gently that a lay-by still looks right.
+        if (window.some((i) => Math.abs(segments[i].curve) > 0.5 || taken.has(i))) continue;
+        best = (start + n) % n;
+        break;
+      }
+    }
+    if (best === null) continue;
+    const straight = segments[best].straight;
+    const side = straight ? 1 : -Math.sign(c.turn) || 1;
+    // Cars stop in the box near the end, after rolling in along the bay.
+    const bay = { id: c.id, corner: c, from: best, to: best + BAY_LEN, mid: best + BAY_LEN / 2, stop: best + 26, board: (best + 46) % n, side };
+    for (let i = 0; i < BAY_LEN; i++) {
+      const s = segments[(best + i) % n];
+      s.bay = { ...bay, open: Math.min(1, i / BAY_TAPER, (BAY_LEN - 1 - i) / BAY_TAPER) };
+      taken.add(s.index);
+    }
+    bays.push(bay);
+  }
+  return bays;
+}
 
-  segments.forEach((s, n) => {
-    const out = ARMCO.at + 0.4;
+const PROJECT_IDS = CORNERS.filter((c) => c[4]).map((c) => c[4]);
+
+function scenery(segments, named, bays) {
+  const r = rng(11);
+  const n = segments.length;
+  const add = (i, kind, offset, extra = {}) => segments[(i + n) % n].sprites.push({ kind, offset, ...extra });
+  const out = ARMCO.at + 0.4;
+  const byBay = new Set(bays.flatMap((b) => Array.from({ length: BAY_LEN }, (_, i) => (b.from + i) % n)));
+  // Keep the billboard free: no stands or buildings right around a bay.
+  const nearBay = new Set(bays.flatMap((b) => Array.from({ length: BAY_LEN + 80 }, (_, i) => (b.from - 40 + i + n) % n)));
+
+  segments.forEach((s, i) => {
+    // Hoardings along the barriers, the sponsors taking turns.
+    if (i % 18 === 9 && !byBay.has(i)) {
+      const side = s.straight ? 1 : i % 36 === 9 ? 1 : -1;
+      add(i, 'hoarding', side * (ARMCO.at - 0.02), { id: PROJECT_IDS[(i / 18 | 0) % PROJECT_IDS.length] });
+    }
+    // Tyre walls on the outside of the slow corners.
+    if (s.gravel && i % 2 === 0) add(i, 'tyres', -Math.sign(s.curve) * (ARMCO.at - 0.05));
+    // Marshal posts every 250 m or so.
+    if (i % 210 === 100) add(i, 'marshal', (i % 420 === 100 ? 1 : -1) * (ARMCO.at + 0.25));
+
     if (s.straight) {
-      // Pit wall and grandstand on the left, a few trees on the right.
-      if (n % 40 === 0) add(s, 'stand', -(PIT_WALL.at + 0.3));
-      if (n % 30 === 15) add(s, 'tree', out + 1 + r() * 3);
+      // Garages behind the pit wall, the main grandstand across the track.
+      if (i % 34 === 0) add(i, 'garage', -(PIT_WALL.at + 0.15));
+      if (i % 48 === 0 && !nearBay.has(i)) add(i, 'stand', ARMCO.at + 0.35);
       return;
     }
-    if (s.corner?.id && n % 26 === 0) add(s, 'board', (s.curve > 0 ? -1 : 1) * out, s.corner.id);
-    if (n % 7 === 0) add(s, 'vines', (r() < 0.5 ? -1 : 1) * (out + 1.5 + r() * 4));
-    if (n % 23 === 5) add(s, r() < 0.4 ? 'cypress' : 'tree', (r() < 0.5 ? -1 : 1) * (out + 0.8 + r() * 5));
-    if (n % 157 === 60) add(s, 'farm', (r() < 0.5 ? -1 : 1) * (out + 5 + r() * 6));
+    if (byBay.has(i)) return;
+    if (i % 7 === 0) add(i, 'vines', (r() < 0.5 ? -1 : 1) * (out + 1.5 + r() * 4));
+    if (i % 23 === 5) add(i, r() < 0.4 ? 'cypress' : 'tree', (r() < 0.5 ? -1 : 1) * (out + 0.8 + r() * 5));
+    if (i % 157 === 60) add(i, 'farm', (r() < 0.5 ? -1 : 1) * (out + 5 + r() * 6));
   });
+
+  // The bridge over the main straight.
+  add(150, 'bridge', 0, { center: true });
+
+  // Each bay has its project's billboard just past it, so it stands in front
+  // of you once you have stopped. It is also the one you can click.
+  for (const b of bays) add(b.board, 'board', b.side * (ARMCO.at + 0.3), { id: b.id, big: true });
+
+  // Braking boards before the slow corners: 150, 100, 50 m.
+  for (const c of named) {
+    const at = Math.round(c.from / M);
+    if (!segments[(at + 3) % n].gravel) continue;
+    const outside = -Math.sign(segments[(at + 3) % n].curve) || 1;
+    for (const m of [150, 100, 50]) {
+      const i = at - Math.round(m / M);
+      // Never between a bay and its billboard: there they go across the track.
+      const bay = bays.find((b) => i >= b.from && i <= b.stop + 24);
+      const side = bay && bay.side === outside ? -outside : outside;
+      add(i, 'brake' + m, side * (ARMCO.at - 0.25));
+    }
+  }
+
+  // A grandstand looking down into the hairpin, ending before its bay so the
+  // billboard stays clear; people on the bank at the Fontana.
+  for (const c of named) {
+    const at = Math.round(c.from / M);
+    const side = -Math.sign(segments[(at + 3) % n].curve) || 1;
+    const bay = bays.find((b) => b.id === c.id);
+    if (c.name === 'Tornante SimRig') for (let i = 1; i <= 2; i++) add((bay ? bay.from : at) - 20 * i, 'stand', side * (ARMCO.at + 0.5));
+    if (c.name === 'La Fontana') for (let i = -40; i <= 30; i += 5) add(at + i, 'crowd', (i % 10 ? 1 : -1) * (out + 0.3 + r() * 1.5));
+  }
+
   // The village and its tower watch over the Curva del Borgo.
-  const borgo = segments.find((s) => s.corner?.name === 'Curva del Borgo');
-  if (borgo) add(segments[borgo.index - 120], 'tower', 14);
+  const borgo = named.find((c) => c.name === 'Curva del Borgo');
+  if (borgo) add(Math.round(borgo.from / M) - 120, 'tower', 14);
 }
