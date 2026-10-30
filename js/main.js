@@ -108,7 +108,7 @@ luckyButton.querySelector('.bulbs').innerHTML = Array.from({ length: 22 }, (_, i
   const [x, y] = [[f, 0], [1, f], [1 - f, 1], [0, 1 - f]][side];
   return `<i style="--i:${i};left:${(x * 100).toFixed(1)}%;top:${(y * 100).toFixed(1)}%"></i>`;
 }).join('');
-luckyButton.addEventListener('click', () => openLucky(luckyButton, winCar));
+luckyButton.addEventListener('click', () => openLucky(luckyButton, { owned: () => garage.owned, onCar: winCar }));
 
 // While the tour waits at a billboard, the hint shows how long is left.
 function tourCountdown(now) {
@@ -227,6 +227,25 @@ function selectCar(id) {
   carImage = paintCar(id);
   gearbox.gear = Math.min(gearbox.gear, spec.gears.length - 1);
   saveGarage();
+}
+
+// Ctrl+Shift+G empties the garage back to the trofeo hatch, to try winning
+// the cars again.
+addEventListener('keydown', (e) => {
+  if (!(e.ctrlKey && e.shiftKey && e.code === 'KeyG') || luckyOpen()) return;
+  e.preventDefault();
+  garage.owned = ['trofeo'];
+  selectCar('trofeo');
+  toast('Garage reset: back to the trofeo hatch.');
+});
+
+let toastTimer = 0;
+function toast(text) {
+  const el = $('toast');
+  el.textContent = text;
+  el.hidden = false;
+  clearTimeout(toastTimer);
+  toastTimer = setTimeout(() => (el.hidden = true), 2500);
 }
 
 function saveGarage() {
