@@ -292,13 +292,10 @@ function sprite(s, sp) {
   const hidden = Math.max(0, y + h - s.clip);
   if (hidden >= h || w < 1) return;
   const srcH = img.height * (1 - hidden / h);
+  // Fade into the haze; a fog rectangle would show around the transparent edges.
+  ctx.globalAlpha = 1 - s.fog * 0.9;
   ctx.drawImage(img, 0, 0, img.width, srcH, x, y, w, h - hidden);
-  if (s.fog > 0.01) {
-    ctx.globalAlpha = s.fog;
-    ctx.fillStyle = fogStyle(1);
-    ctx.fillRect(x, y, w, h - hidden);
-    ctx.globalAlpha = 1;
-  }
+  ctx.globalAlpha = 1;
 }
 
 function drawCar(c) {
@@ -309,8 +306,8 @@ function drawCar(c) {
   const sp = car.speed / MAX_SPEED;
   const shake = (Math.random() - 0.5) * (sp * 3 + car.bump * 14) * (W / 1400);
   const x = W / 2 + c.steer * w * 0.06;
-  // On phones the project list sits along the bottom edge.
-  const y = H - h * 0.55 - (narrow ? 80 * (W / innerWidth) : H * 0.03) + shake;
+  // On phones the dash and the project list sit along the bottom edge.
+  const y = H - h * 0.55 - (narrow ? 180 * (W / innerWidth) : H * 0.03) + shake;
   ctx.save();
   ctx.translate(x, y);
   ctx.rotate(c.steer * 0.05);
@@ -355,36 +352,64 @@ function drawMinimap() {
   mctx.fill();
 }
 
-// ---- HUD and the corner on screen ---------------------------------------------
+// ---- HUD ----------------------------------------------------------------------
 
 let shownCorner = null;
 let cornerUntil = 0;
 
-// Every corner gets a caption, like on TV; the ones named after a project link to it.
-function cornerCaption(seg, now) {
+// The corner you are in, top centre; the ones named after a project link to it.
+function cornerBanner(seg, now) {
   if (seg.corner) cornerUntil = now + 1500;
   const corner = seg.corner ?? (now < cornerUntil ? shownCorner : null);
   if (corner === shownCorner) return;
   shownCorner = corner;
-  const box = $('lower-third');
+  const box = $('corner');
   if (!corner) { box.classList.remove('on'); return; }
   const i = corner.id ? info[corner.id] : null;
-  const title = box.querySelector('.title');
+  const link = box.querySelector('.sponsor');
   box.style.setProperty('--sponsor', corner.id ? SPONSORS[corner.id].bg : 'var(--ink)');
-  box.querySelector('.kicker').textContent = `Turn ${corner.number}`;
-  title.textContent = corner.name;
-  if (i) title.href = i.href; else title.removeAttribute('href');
-  box.querySelector('.what').textContent = i ? i.text : '';
-  box.querySelector('.tech').textContent = i ? i.tech : '';
+  box.querySelector('.number').textContent = `T${corner.number}`;
+  box.querySelector('.name').textContent = corner.name;
+  link.hidden = !i;
+  if (i) {
+    link.href = i.href;
+    link.querySelector('.what').textContent = i.text;
+    link.querySelector('.tech').textContent = i.tech;
+  }
   box.classList.add('on');
 }
 
+// Six gears, each topping out at 12,000 rpm; shift up near the limiter,
+// down when the revs would fall under 6,000.
+const GEAR_TOP = [0, 70, 110, 150, 190, 225, 262];
+const REDLINE = 12000;
+const gearbox = { gear: 0, rpm: 0 };
+
+function shift(kmh, throttle) {
+  let g = gearbox.gear;
+  if (g === 0 && (throttle > 0 || kmh > 1)) g = 1;
+  if (g > 0 && g < 6 && kmh > GEAR_TOP[g] * 0.98) g++;
+  if (g > 1 && kmh < GEAR_TOP[g] * 0.5) g--;
+  if (kmh < 1 && throttle === 0) g = 0;
+  gearbox.gear = g;
+  gearbox.rpm = g ? clamp((REDLINE * kmh) / GEAR_TOP[g], 3500, REDLINE) : 900;
+}
+
+const revs = $('revs');
+revs.innerHTML = '<i></i>'.repeat(15);
 const fmt = (t) => (t === null ? '–:––.–' : `${Math.floor(t / 60)}:${(t % 60).toFixed(1).padStart(4, '0')}`);
 let hudTick = 0;
 
-function hud(auto) {
+function hud(auto, c) {
+  const kmh = (car.speed / MAX_SPEED) * 260;
+  shift(kmh, c.throttle);
+  const lit = Math.round(clamp((gearbox.rpm - 7000) / (REDLINE * 0.98 - 7000), 0, 1) * 15);
+  revs.classList.toggle('limit', gearbox.rpm >= REDLINE * 0.98 && gearbox.gear < 6);
+  [...revs.children].forEach((led, i) => led.classList.toggle('on', i < lit));
   if (++hudTick % 4) return;
-  $('speed').textContent = Math.round((car.speed / MAX_SPEED) * 260);
+  $('gear').textContent = gearbox.gear || 'N';
+  $('speed').textContent = Math.round(kmh);
+  $('rpm').textContent = Math.round(gearbox.rpm / 100) * 100;
   $('lap').textContent = lap.n;
   $('lap-time').textContent = fmt(lap.time);
   $('lap-last').textContent = fmt(lap.last);
@@ -411,8 +436,8 @@ function frame(now) {
   drawRoad();
   drawCar(c);
   drawMinimap();
-  cornerCaption(seg, now);
-  hud(auto);
+  cornerBanner(seg, now);
+  hud(auto, c);
   requestAnimationFrame(frame);
 }
 

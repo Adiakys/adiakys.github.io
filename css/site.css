@@ -30,75 +30,56 @@ a { color: inherit; }
 }
 
 .panel {
-  position: fixed;
   background: var(--panel);
   border-left: 4px solid var(--accent);
 }
 
-/* Name and role: the first thing anyone reads. */
-.driver-card {
-  top: var(--gutter);
-  left: var(--gutter);
-  max-width: 340px;
-  padding: 14px 18px 12px;
-}
-.driver-card h1 {
-  margin: 0;
-  font: 800 34px/1 var(--cond);
-  text-transform: uppercase;
-  letter-spacing: 0.01em;
-}
-.driver-card p { margin: 8px 0 0; color: var(--dim); }
-.driver-card .links { font: 700 14px var(--cond); text-transform: uppercase; letter-spacing: 0.08em; }
-
-/* The project list, in the same order as the boards. */
-.sponsors {
-  right: var(--gutter);
-  bottom: var(--gutter);
-  width: 290px;
-  max-height: 46vh;
-  overflow: auto;
-  padding: 10px 16px 6px;
-}
-.sponsors summary {
-  cursor: pointer;
+.label, .timing dt, .sponsors summary {
   font: 700 13px var(--cond);
   text-transform: uppercase;
   letter-spacing: 0.12em;
   color: var(--dim);
 }
-.sponsors ol { margin: 6px 0 0; padding: 0; list-style: none; }
-.sponsors li { padding: 7px 0; border-top: 1px solid rgba(242, 240, 234, 0.1); }
-.sponsors li a { font: 700 17px var(--cond); text-transform: uppercase; text-decoration: none; }
-.sponsors li a:hover { color: var(--accent); }
-.sponsors .what { display: block; color: var(--dim); font-size: 13px; }
-.sponsors .tech { font: 500 12px var(--cond); text-transform: uppercase; letter-spacing: 0.08em; color: var(--accent); }
 
-/* Timing screen. */
-.hud {
+/* Top right: who. */
+.driver-card {
   position: fixed;
   top: var(--gutter);
   right: var(--gutter);
-  text-align: right;
-  font-family: var(--cond);
-  text-transform: uppercase;
-  pointer-events: none;
+  max-width: 250px;
+  padding: 9px 14px 8px;
 }
-.speed { font: 800 64px/0.9 var(--cond); font-variant-numeric: tabular-nums; }
-.speed small { font-size: 16px; margin-left: 6px; color: var(--dim); }
-.times {
-  display: grid;
-  grid-template-columns: auto auto;
-  gap: 0 12px;
-  margin: 8px 0 0;
-  font: 600 16px var(--cond);
+.driver-card h1 {
+  margin: 0;
+  font: 800 22px/1 var(--cond);
+  text-transform: uppercase;
+  letter-spacing: 0.01em;
+}
+.driver-card p { margin: 4px 0 0; color: var(--dim); font-size: 13px; line-height: 1.35; }
+.driver-card .links { font: 700 12px var(--cond); text-transform: uppercase; letter-spacing: 0.08em; }
+
+/* Top left: the timing screen. */
+.timing {
+  position: fixed;
+  top: var(--gutter);
+  left: var(--gutter);
+  width: 200px;
+  padding: 10px 16px 10px;
+  font-family: var(--cond);
   font-variant-numeric: tabular-nums;
 }
-.times dt { color: var(--dim); font-size: 13px; letter-spacing: 0.1em; align-self: center; }
-.times dd { margin: 0; }
-.driver { margin: 6px 0 0; font: 600 13px var(--cond); letter-spacing: 0.1em; color: var(--accent); }
+.timing .lap { margin: 0 0 4px; font: 800 26px/1 var(--cond); text-transform: uppercase; }
+.timing dl {
+  display: grid;
+  grid-template-columns: auto 1fr;
+  gap: 2px 12px;
+  margin: 0;
+}
+.timing dt { align-self: center; }
+.timing dd { margin: 0; text-align: right; font: 600 18px var(--cond); }
+.timing dd#lap-time { font-weight: 800; font-size: 22px; }
+.driver { margin: 8px 0 0; font: 600 13px var(--cond); text-transform: uppercase; letter-spacing: 0.1em; color: var(--accent); }
 .driver button, .cal button {
-  pointer-events: auto;
   font: 700 12px var(--cond);
   text-transform: uppercase;
   letter-spacing: 0.1em;
@@ -110,49 +91,94 @@ a { color: inherit; }
   cursor: pointer;
 }
 
-#minimap {
+/* Top centre: the corner you are in. */
+.corner {
   position: fixed;
-  left: var(--gutter);
-  bottom: var(--gutter);
-  width: 150px;
-  height: 150px;
-  pointer-events: none;
-}
-
-/* The sponsor on screen, like a TV caption. */
-.lower-third {
-  --sponsor: var(--accent);
-  position: fixed;
+  top: var(--gutter);
   left: 50%;
-  bottom: 28vh;
-  display: grid;
-  grid-template-columns: auto auto;
-  align-items: baseline;
-  gap: 0 14px;
-  min-width: 300px;
-  padding: 10px 18px 12px;
-  background: var(--panel);
-  border-left: 8px solid var(--sponsor);
-  transform: translate(-50%, 12px);
+  max-width: min(440px, 40vw);
+  text-align: center;
+  transform: translate(-50%, -8px);
   opacity: 0;
   pointer-events: none;
   transition: opacity 0.25s, transform 0.25s;
 }
-.lower-third.on { opacity: 1; transform: translate(-50%, 0); pointer-events: auto; }
-.lower-third .kicker, .lower-third .tech {
-  font: 700 12px var(--cond);
+.corner.on { opacity: 1; transform: translate(-50%, 0); pointer-events: auto; }
+.corner .turn {
+  display: inline-flex;
+  margin: 0;
+  background: var(--panel);
+  font: 800 24px/1 var(--cond);
   text-transform: uppercase;
-  letter-spacing: 0.14em;
-  color: var(--dim);
 }
-.lower-third .tech { text-align: right; color: var(--sponsor); }
-.lower-third .title {
-  grid-column: 1 / -1;
-  font: 800 30px/1.05 var(--cond);
-  text-transform: uppercase;
+.corner .number { padding: 8px 10px; background: var(--sponsor, var(--accent)); color: #14110f; }
+.corner .name { padding: 8px 14px; }
+.corner .sponsor {
+  display: block;
+  margin-top: 4px;
+  padding: 6px 12px;
+  background: var(--panel);
+  color: var(--dim);
+  font-size: 13px;
   text-decoration: none;
 }
-.lower-third .what { grid-column: 1 / -1; color: var(--dim); }
+.corner .sponsor:hover { color: var(--ink); }
+.corner .sponsor[hidden] { display: none; }
+.corner .tech { font: 700 12px var(--cond); text-transform: uppercase; letter-spacing: 0.1em; color: var(--sponsor, var(--accent)); }
+
+/* Bottom right: the track map over the dash. */
+.dash {
+  position: fixed;
+  right: var(--gutter);
+  bottom: var(--gutter);
+  width: 240px;
+  display: flex;
+  flex-direction: column;
+  align-items: flex-end;
+  gap: 10px;
+  pointer-events: none;
+}
+#minimap {
+  width: 170px;
+  height: 130px;
+  background: rgba(12, 13, 16, 0.6);
+}
+.gauge {
+  width: 100%;
+  padding: 10px 14px 12px;
+  background: var(--panel);
+  font-family: var(--cond);
+  font-variant-numeric: tabular-nums;
+}
+.revs { display: grid; grid-template-columns: repeat(15, 1fr); gap: 3px; height: 10px; }
+.revs i { background: rgba(242, 240, 234, 0.12); }
+.revs i.on:nth-child(-n + 5) { background: #3ccf6b; }
+.revs i.on:nth-child(n + 6):nth-child(-n + 10) { background: #ff3b2f; }
+.revs i.on:nth-child(n + 11) { background: #3d7bff; }
+.revs.limit i { background: #3d7bff; }
+.gear-row { display: flex; align-items: center; gap: 16px; margin-top: 8px; }
+.gear { font: 800 72px/0.85 var(--cond); min-width: 44px; text-align: center; }
+.readouts { display: flex; flex-direction: column; font: 600 13px var(--cond); text-transform: uppercase; letter-spacing: 0.1em; color: var(--dim); }
+.readouts b { font: 800 30px/1 var(--cond); color: var(--ink); letter-spacing: 0; margin-right: 4px; }
+.readouts span + span b { font-size: 18px; }
+
+/* Bottom left: the project list, in the same order as the boards. */
+.sponsors {
+  position: fixed;
+  left: var(--gutter);
+  bottom: var(--gutter);
+  width: 290px;
+  max-height: 40vh;
+  overflow: auto;
+  padding: 10px 16px 6px;
+}
+.sponsors summary { cursor: pointer; }
+.sponsors ol { margin: 6px 0 0; padding: 0; list-style: none; }
+.sponsors li { padding: 7px 0; border-top: 1px solid rgba(242, 240, 234, 0.1); }
+.sponsors li a { font: 700 17px var(--cond); text-transform: uppercase; text-decoration: none; }
+.sponsors li a:hover { color: var(--accent); }
+.sponsors .what { display: block; color: var(--dim); font-size: 13px; }
+.sponsors .tech { font: 500 12px var(--cond); text-transform: uppercase; letter-spacing: 0.08em; color: var(--accent); }
 
 .controls {
   position: fixed;
@@ -163,12 +189,13 @@ a { color: inherit; }
   font: 600 12px var(--cond);
   text-transform: uppercase;
   letter-spacing: 0.12em;
-  color: rgba(242, 240, 234, 0.55);
+  color: rgba(242, 240, 234, 0.7);
   white-space: nowrap;
   pointer-events: none;
 }
 
 .cal {
+  position: fixed;
   top: 50%;
   left: 50%;
   transform: translate(-50%, -50%);
@@ -181,16 +208,27 @@ a { color: inherit; }
 
 a:focus-visible, button:focus-visible, summary:focus-visible { outline: 2px solid var(--accent); outline-offset: 2px; }
 
-@media (max-width: 720px) {
-  .driver-card { right: var(--gutter); max-width: none; padding: 10px 14px; }
-  .driver-card h1 { font-size: 26px; }
-  .driver-card p { font-size: 13px; }
-  .hud { top: auto; bottom: calc(var(--gutter) + 52px); }
-  .speed { font-size: 44px; }
-  .times { display: none; }
-  #minimap { display: none; }
-  .sponsors { left: var(--gutter); right: var(--gutter); width: auto; max-height: 40vh; }
-  .sponsors:not([open]) { padding-bottom: 10px; }
-  .lower-third { bottom: auto; top: 30vh; min-width: 0; width: calc(100% - 32px); }
+/* Where the panels leave no room in the middle, the banner drops below them. */
+@media (max-width: 1100px) {
+  .corner { top: 190px; max-width: calc(100% - 2 * var(--gutter)); }
   .controls { display: none; }
+}
+
+@media (max-width: 720px) {
+  .driver-card { left: var(--gutter); max-width: none; }
+  .timing { top: calc(var(--gutter) + 76px); right: var(--gutter); width: auto; display: flex; align-items: baseline; gap: 14px; padding: 6px 12px; }
+  .timing .lap { font-size: 18px; margin: 0; }
+  .timing dl { display: flex; gap: 8px; }
+  .timing dt:not(:first-of-type), .timing dd:not(#lap-time) { display: none; }
+  .timing dd#lap-time { font-size: 18px; }
+  .driver { margin: 0 0 0 auto; font-size: 11px; }
+  .corner { top: 44%; left: var(--gutter); right: var(--gutter); max-width: none; transform: translateY(-8px); }
+  .corner.on { transform: none; }
+  .corner .turn { font-size: 20px; }
+  .dash { left: var(--gutter); bottom: calc(var(--gutter) + 52px); width: auto; }
+  #minimap { display: none; }
+  .gear { font-size: 52px; }
+  .readouts b { font-size: 24px; }
+  .sponsors { left: var(--gutter); right: var(--gutter); width: auto; }
+  .sponsors:not([open]) { padding-bottom: 10px; }
 }
