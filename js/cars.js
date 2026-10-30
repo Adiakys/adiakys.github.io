@@ -9,28 +9,28 @@ const FONT = '"Barlow Condensed", "Arial Narrow", sans-serif';
 
 export const CARS = {
   trofeo: {
-    name: 'Trofeo hatch',
+    name: 'Trofeo hatch', short: 'Trofeo',
     top: 190, accel: 6, slide: 0.62,
     gears: [0, 55, 90, 125, 160, 190], idle: 1000, shift: 6800, limiter: 7200,
     lights: [[112, 150, 58, 30], [470, 150, 58, 30]],
     draw: trofeo,
   },
   superturismo: {
-    name: 'Superturismo',
+    name: 'Superturismo', short: 'ST',
     top: 245, accel: 5.5, slide: 0.56,
     gears: [0, 75, 110, 145, 180, 215, 245], idle: 1200, shift: 8300, limiter: 8600,
     lights: [[80, 142, 480, 20]],
     draw: superturismo,
   },
   gt3: {
-    name: 'GT3',
+    name: 'GT3', short: 'GT3',
     top: 282, accel: 5.2, slide: 0.52,
     gears: [0, 95, 135, 170, 205, 245, 282], idle: 1500, shift: 8800, limiter: 9200,
     lights: [[70, 164, 160, 12], [410, 164, 160, 12]],
     draw: gt3,
   },
   f1: {
-    name: 'Formula 1',
+    name: 'Formula 1', short: 'F1',
     top: 320, accel: 5, slide: 0.5,
     gears: [0, 95, 130, 160, 190, 220, 250, 285, 320], idle: 4000, shift: 12000, limiter: 15000,
     lights: [[304, 214, 32, 16]],

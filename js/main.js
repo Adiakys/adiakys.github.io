@@ -217,12 +217,74 @@ function readGarage() {
 // A car won: it joins the garage, and you drive it if it beats yours.
 function winCar(id) {
   if (!garage.owned.includes(id)) garage.owned.push(id);
-  if (RANK.indexOf(id) > RANK.indexOf(garage.current)) {
-    garage.current = id;
-    spec = CARS[id];
-    carImage = paintCar(id);
-  }
+  if (RANK.indexOf(id) > RANK.indexOf(garage.current)) selectCar(id);
+  else saveGarage();
+}
+
+function selectCar(id) {
+  garage.current = id;
+  spec = CARS[id];
+  carImage = paintCar(id);
+  gearbox.gear = Math.min(gearbox.gear, spec.gears.length - 1);
+  saveGarage();
+}
+
+function saveGarage() {
   try { localStorage.setItem('garage', JSON.stringify(garage)); } catch { /* private mode */ }
+  showGarage();
+}
+
+// The garage: the cars you own as icons you can pick; the others behind a
+// closed garage door, with a word on where to win them.
+const carIcons = {};
+let closedDoor = null;
+
+// A closed garage: a roof edge, a roller shutter, a padlock.
+function paintDoor() {
+  const c = document.createElement('canvas');
+  c.width = 640;
+  c.height = 300;
+  const g = c.getContext('2d');
+  g.fillStyle = '#e9e7e1';
+  g.beginPath(); g.moveTo(130, 70); g.lineTo(320, 6); g.lineTo(510, 70); g.lineTo(510, 296); g.lineTo(130, 296); g.fill();
+  g.fillStyle = '#5d6168';
+  g.fillRect(172, 92, 296, 204);
+  g.fillStyle = '#7b8087';
+  for (let y = 100; y < 296; y += 22) g.fillRect(172, y, 296, 10);
+  g.fillStyle = '#d4af5a';
+  g.fillRect(296, 222, 48, 40);
+  g.strokeStyle = '#d4af5a';
+  g.lineWidth = 9;
+  g.beginPath(); g.arc(320, 222, 16, Math.PI, 0); g.stroke();
+  return c.toDataURL();
+}
+
+function showGarage() {
+  const box = document.querySelector('.garage');
+  const lucky = track.corners.find((c) => c.id === 'lucky');
+  box.replaceChildren(...RANK.map((id) => {
+    const owned = garage.owned.includes(id);
+    const b = document.createElement('button');
+    b.type = 'button';
+    carIcons[id] ??= paintCar(id).toDataURL();
+    closedDoor ??= paintDoor();
+    const img = document.createElement('img');
+    img.src = owned ? carIcons[id] : closedDoor;
+    img.alt = '';
+    b.append(img);
+    b.setAttribute('aria-label', CARS[id].name);
+    b.setAttribute('aria-pressed', String(id === garage.current));
+    b.dataset.tip = owned
+      ? (id === garage.current ? `${CARS[id].name}: driving` : `Drive the ${CARS[id].name}`)
+      : `${CARS[id].name}: win it at Feeling Lucky, the billboard at T${lucky.number}`;
+    if (!owned) b.setAttribute('aria-disabled', 'true');
+    // Blur after the click, so the arrow keys go back to driving.
+    b.addEventListener('click', () => {
+      if (owned) selectCar(id);
+      b.blur();
+    });
+    return b;
+  }));
 }
 
 // The fastest a corner can be taken with the wheel at full lock, with a margin.
@@ -308,11 +370,6 @@ function update(dt, now) {
   const seg = segAt(car.position + PLAYER_Z);
   const sp = car.speed / MAX_SPEED;
   const auto = input.idle();
-  // The casino room is open: the race waits, and so does the tour's stop.
-  if (luckyOpen()) {
-    tour.until += dt * 1000;
-    return { seg, c: { steer: 0, throttle: 0, brake: 1 }, auto };
-  }
   // Taking the wheel during a tour stop: the camera stays on the billboard
   // until you drive off, as if you had stopped there yourself.
   if (!auto && tour.stop) {
@@ -731,7 +788,26 @@ function saveBest(t) {
 // ---- Loop -------------------------------------------------------------------
 
 let last = performance.now();
+// While the casino room is open the race stops altogether and the page under
+// it is hidden, so the room has the machine to itself; a tour stop waits too.
+let casinoSince = 0;
+
 function frame(now) {
+  if (luckyOpen()) {
+    if (!casinoSince) {
+      casinoSince = now;
+      document.body.classList.add('casino');
+      placeLuckyButton();
+    }
+    setTimeout(() => requestAnimationFrame(frame), 250);
+    return;
+  }
+  if (casinoSince) {
+    tour.until += now - casinoSince;
+    casinoSince = 0;
+    last = now;
+    document.body.classList.remove('casino');
+  }
   const dt = Math.min(0.05, (now - last) / 1000);
   last = now;
   const { seg, c, auto } = update(dt, now);
@@ -757,6 +833,7 @@ const fonts = ['800 100px "Barlow Condensed"', '700 40px "Barlow Condensed"', '5
 Promise.all([loadBrandImages(), ...fonts.map((f) => document.fonts.load(f).catch(() => {}))]).then(([images]) => {
   art = makeArt(info, images);
   carImage = paintCar(garage.current);
+  showGarage();
   // The billboards are painted with the page's text at once, then again with
   // the live numbers from GitHub when they come.
   for (const [id, board] of Object.entries(art.bigBoards))

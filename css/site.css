@@ -127,8 +127,8 @@ a { color: inherit; }
 .corner .tech { font: 700 12px var(--cond); text-transform: uppercase; letter-spacing: 0.1em; color: var(--sponsor, var(--accent)); }
 
 /* While the camera is on a billboard: the HUD steps aside, a line says what to do. */
-.timing, .driver-card, .dash, .sponsors, .controls { transition: opacity 0.4s; }
-.zoomed .timing, .zoomed .driver-card, .zoomed .corner, .zoomed .dash, .zoomed .sponsors, .zoomed .controls { opacity: 0; pointer-events: none; }
+.timing, .driver-card, .dash, .sponsors, .controls, .garage { transition: opacity 0.4s; }
+.zoomed .timing, .zoomed .driver-card, .zoomed .corner, .zoomed .dash, .zoomed .sponsors, .zoomed .controls, .zoomed .garage { opacity: 0; pointer-events: none; }
 .board-hint {
   position: fixed;
   left: 50%;
@@ -154,6 +154,10 @@ a { color: inherit; }
 .board-hint .countdown { position: absolute; left: 0; right: 0; bottom: 0; height: 3px; background: rgba(242, 240, 234, 0.12); }
 .board-hint .countdown i { display: block; height: 100%; background: var(--accent); transform-origin: left; }
 .board-hint kbd { padding: 1px 6px; border: 1px solid rgba(242, 240, 234, 0.35); font: 600 11px var(--cond); color: var(--dim); }
+
+/* Under the casino room nothing of the race is drawn. */
+.casino #track, .casino .timing, .casino .driver-card, .casino .corner, .casino .dash,
+.casino .sponsors, .casino .controls, .casino .board-hint, .casino .garage { visibility: hidden; }
 
 /* The casino button laid over the Feeling Lucky billboard while the camera is on it. */
 .lucky-button {
@@ -232,6 +236,52 @@ a { color: inherit; }
 .readouts b { font: 800 30px/1 var(--cond); color: var(--ink); letter-spacing: 0; margin-right: 4px; }
 .readouts span + span b { font-size: 18px; }
 
+/* The garage, next to the project list: the cars you can drive, and the
+   ones still to win. */
+.garage {
+  position: fixed;
+  z-index: 2;
+  left: calc(var(--gutter) + 300px);
+  bottom: var(--gutter);
+  display: flex;
+  gap: 4px;
+  padding: 6px 6px 6px 10px;
+}
+.garage button {
+  position: relative;
+  width: 66px;
+  height: 40px;
+  padding: 3px;
+  border: 1px solid transparent;
+  background: none;
+  cursor: pointer;
+}
+.garage img { display: block; width: 100%; height: 100%; object-fit: contain; }
+.garage button:hover { border-color: rgba(242, 240, 234, 0.3); }
+.garage button[aria-pressed="true"] { border-color: var(--accent); background: rgba(255, 90, 31, 0.15); }
+.garage button[aria-disabled="true"] { cursor: default; }
+.garage button[aria-disabled="true"] img { opacity: 0.55; }
+.garage button[aria-disabled="true"]:hover { border-color: transparent; }
+/* The tooltip, also for the locked ones, which a native title would not show. */
+.garage button::after {
+  content: attr(data-tip);
+  position: absolute;
+  left: 0;
+  bottom: calc(100% + 10px);
+  width: max-content;
+  max-width: 220px;
+  padding: 6px 10px;
+  background: var(--panel);
+  border-left: 3px solid var(--accent);
+  color: var(--ink);
+  font: 500 13px/1.35 var(--text);
+  text-align: left;
+  opacity: 0;
+  pointer-events: none;
+  transition: opacity 0.15s;
+}
+.garage button:hover::after, .garage button:focus-visible::after { opacity: 1; }
+
 /* Bottom left: the project list, in the order pinned on GitHub. */
 .sponsors {
   position: fixed;
@@ -300,5 +350,8 @@ a:focus-visible, button:focus-visible, summary:focus-visible { outline: 2px soli
   .gear { font-size: 52px; }
   .readouts b { font-size: 24px; }
   .sponsors { left: var(--gutter); right: var(--gutter); width: auto; }
+  .garage { left: auto; right: var(--gutter); bottom: auto; top: calc(var(--gutter) + 118px); padding: 4px; }
+  .garage button { width: 52px; height: 32px; }
+  .garage button::after { bottom: auto; top: calc(100% + 8px); left: auto; right: 0; transform: none; }
   .sponsors:not([open]) { padding-bottom: 10px; }
 }
