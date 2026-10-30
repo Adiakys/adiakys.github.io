@@ -22,6 +22,9 @@ const PLAYER_Z = CAM_H * CAM_DEPTH;
 // The world's speed scale: MAX_SPEED is 320 km/h, the fastest car's top speed.
 const MAX_SPEED = SEG * 60;
 const TOP_KMH = 320;
+const REVERSE_TOP = (SEG * 60 * 30) / 320;   // 30 km/h backwards, in world units
+const REVERSE_ACCEL = 2.5;                    // seconds to get there
+const REVERSE_AFTER = 0.35;                   // seconds of brake at a standstill before it engages
 const PACE = 1.5;    // race seconds per real second
 const BRAKING = -MAX_SPEED;
 const DECEL = -MAX_SPEED / 5;
@@ -54,8 +57,8 @@ let art;
 // at one part of the track.
 const params = new URLSearchParams(location.search);
 const startAt = Number(params.get('at')) || 0;
-const car = { position: (startAt * SEG) % track.length, x: Number(params.get('x')) || 0, speed: 0, bump: 0 };
-const lap = { n: 1, start: 0, last: null, best: readBest(), time: 0 };
+const car = { position: (startAt * SEG) % track.length, x: Number(params.get('x')) || 0, speed: 0, bump: 0, holdBrake: 0 };
+const lap = { n: 1, start: 0, last: null, best: readBest(), time: 0, crossedBack: false };
 let skyOffset = 0;
 let W = 0, H = 0;
 
@@ -406,20 +409,30 @@ function update(dt, now) {
   const t = dt * PACE;
   const c = auto ? autopilot(seg, sp, now, t) : input.state;
 
-  const dx = t * 2 * sp;
+  // Steering and corners push the car by how fast it moves, either way.
+  const dx = t * 2 * Math.abs(sp);
   car.x += dx * c.steer;
-  car.x -= dx * sp * seg.curve * spec.slide;
+  car.x -= dx * Math.abs(sp) * seg.curve * spec.slide;
 
-  if (c.throttle > 0) car.speed += (topSpeed() / spec.accel) * c.throttle * t;
-  else car.speed += DECEL * t;
-  car.speed += BRAKING * c.brake * t;
+  // Reverse: standing still, holding the brake a moment backs the car up; the
+  // throttle stops it. Only when you drive: the autopilot brakes to stop.
+  car.holdBrake = car.speed <= 0.5 && c.brake > 0.1 && c.throttle < 0.1 && !auto ? car.holdBrake + dt : 0;
+  if (car.speed < 0 || car.holdBrake > REVERSE_AFTER) {
+    car.speed -= (REVERSE_TOP / REVERSE_ACCEL) * c.brake * t;
+    if (c.throttle > 0) car.speed = Math.min(0, car.speed - BRAKING * c.throttle * t);
+    else if (c.brake < 0.1) car.speed = Math.min(0, car.speed - DECEL * t);
+  } else {
+    if (c.throttle > 0) car.speed += (topSpeed() / spec.accel) * c.throttle * t;
+    else car.speed += DECEL * t;
+    car.speed = Math.max(0, car.speed + BRAKING * c.brake * t);
+  }
   // A bay widens the road on its side.
   const inBay = seg.bay && Math.sign(car.x) === seg.bay.side;
   const edge = inBay ? 1 + BAY_W * seg.bay.open : 1;
   if (Math.abs(car.x) > edge && car.speed > OFFROAD_LIMIT) car.speed += (seg.gravel ? GRAVEL_DECEL : OFFROAD_DECEL) * t;
 
   // Stopped in a bay: show its project. Driving off closes it.
-  const kmh = sp * TOP_KMH;
+  const kmh = Math.abs(sp) * TOP_KMH;
   // Half a second standing still in a bay brings the camera onto its billboard,
   // also again after a touch of throttle; only Esc keeps that bay quiet.
   if (seg.bay?.id !== view.dismissed) view.dismissed = null;
@@ -434,15 +447,18 @@ function update(dt, now) {
     car.speed *= 0.6;
     car.bump = 1;
   }
-  car.speed = clamp(car.speed, 0, topSpeed());
+  car.speed = clamp(car.speed, -REVERSE_TOP, topSpeed());
   car.bump = Math.max(0, car.bump - dt * 3);
 
   const before = car.position;
-  car.position = (car.position + t * car.speed) % track.length;
+  car.position = (((car.position + t * car.speed) % track.length) + track.length) % track.length;
   skyOffset += t * 0.0012 * seg.curve * sp;
 
   lap.time += dt;
-  if (car.position < before) {
+  // Backing over the line and driving over it again is the same lap, not a new one.
+  if (car.speed < 0 && car.position > before) lap.crossedBack = true;
+  else if (car.speed >= 0 && car.position < before && lap.crossedBack) lap.crossedBack = false;
+  else if (car.speed >= 0 && car.position < before) {
     if (!auto && (lap.best === null || lap.time < lap.best)) saveBest((lap.best = lap.time));
     lap.last = lap.time;
     lap.time = 0;
@@ -688,10 +704,12 @@ function drawCar(c) {
   ctx.translate(x, y);
   ctx.rotate(c.steer * 0.05);
   ctx.drawImage(img, -w / 2, -h / 2, w, h);
-  if (c.brake > 0.1) {
+  // Brake lights, or the white reversing lights going backwards.
+  const lamp = car.speed < 0 ? '#f4f1e8' : c.brake > 0.1 ? '#ff2a1a' : null;
+  if (lamp) {
     const k = w / img.width;
-    ctx.fillStyle = '#ff2a1a';
-    ctx.shadowColor = '#ff2a1a';
+    ctx.fillStyle = lamp;
+    ctx.shadowColor = lamp;
     ctx.shadowBlur = 30 * k * 3;
     for (const [lx, ly, lw, lh] of spec.lights) ctx.fillRect(-w / 2 + lx * k, -h / 2 + ly * k, lw * k, lh * k);
   }
@@ -762,7 +780,7 @@ const gearbox = { gear: 0, rpm: 0 };
 
 function shift(kmh, throttle) {
   const tops = spec.gears, last = tops.length - 1;
-  let g = Math.min(gearbox.gear, last);
+  let g = clamp(gearbox.gear, 0, last);
   if (g === 0 && (throttle > 0 || kmh > 1)) g = 1;
   if (g > 0 && g < last && kmh > tops[g]) g++;
   if (g > 1 && kmh < tops[g - 1] * 0.9) g--;
@@ -777,15 +795,17 @@ const fmt = (t) => (t === null ? '–:––.–' : `${Math.floor(t / 60)}:${(t 
 let hudTick = 0;
 
 function hud(auto, c) {
-  const kmh = (car.speed / MAX_SPEED) * TOP_KMH;
+  const kmh = (Math.abs(car.speed) / MAX_SPEED) * TOP_KMH;
   shift(kmh, c.throttle);
+  // Reverse has one gear, a bit shorter than first.
+  if (car.speed < 0) Object.assign(gearbox, { gear: -1, rpm: clamp((spec.shift * kmh) / (spec.gears[1] * 0.7), spec.idle, spec.limiter) });
   // Like the wheel's LEDs: they start a sixth below the shift point and are all lit at it.
   const from = spec.shift * 0.83;
   const lit = Math.round(clamp((gearbox.rpm - from) / (spec.shift * 0.98 - from), 0, 1) * 15);
   revs.classList.toggle('limit', gearbox.rpm >= spec.shift * 0.98 && gearbox.gear < spec.gears.length - 1);
   [...revs.children].forEach((led, i) => led.classList.toggle('on', i < lit));
   if (++hudTick % 4) return;
-  $('gear').textContent = gearbox.gear || 'N';
+  $('gear').textContent = gearbox.gear < 0 ? 'R' : gearbox.gear || 'N';
   $('speed').textContent = Math.round(kmh);
   $('rpm').textContent = Math.round(gearbox.rpm / 100) * 100;
   $('lap').textContent = lap.n;
