@@ -162,7 +162,7 @@ a { color: inherit; }
 .readouts b { font: 800 30px/1 var(--cond); color: var(--ink); letter-spacing: 0; margin-right: 4px; }
 .readouts span + span b { font-size: 18px; }
 
-/* Bottom left: the project list, in the same order as the boards. */
+/* Bottom left: the project list, in the order pinned on GitHub. */
 .sponsors {
   position: fixed;
   left: var(--gutter);
