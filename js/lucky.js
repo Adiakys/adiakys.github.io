@@ -1,9 +1,11 @@
 // Feeling Lucky, the casino room from the feeling-lucky project, loaded from
 // the CDN the first time someone presses the button on its billboard. The
 // prize is a faster car: the room's small win is the Superturismo, the big
-// one the GT3, the jackpot the F1.
+// one the GT3, the jackpot the F1. The odds are generous: about four plays
+// in ten win a car, one in thirty the F1.
 import { CARS, drawCar } from './cars.js';
 
+// `odds` is read from 0.4.0 on; until the site moves to it, 0.3.0 ignores it.
 const LIBRARY = 'https://cdn.jsdelivr.net/npm/@adiakys/feeling-lucky@0.3.0/dist/feeling-lucky.js';
 let lucky = null;
 
@@ -15,6 +17,7 @@ export async function openLucky(from, onCar) {
     const { createFeelingLucky } = await import(LIBRARY);
     lucky = createFeelingLucky({
       locale: 'en',
+      odds: { small: 1 / 4, big: 1 / 10, jackpot: 1 / 30 },
       messages: { en: { cert: { claim: 'Drive it now', claimed: 'In your garage' } } },
       prizes: [{
         id: 'car',
