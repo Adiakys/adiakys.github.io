@@ -379,20 +379,24 @@ function cornerBanner(seg, now) {
   box.classList.add('on');
 }
 
-// Six gears, each topping out at 12,000 rpm; shift up near the limiter,
-// down when the revs would fall under 6,000.
-const GEAR_TOP = [0, 70, 110, 150, 190, 225, 262];
-const REDLINE = 12000;
-const gearbox = { gear: 0, rpm: 0 };
+// A current F1 gearbox: eight gears, a 15,000 rpm limiter, but the fuel flow
+// limit peaks around 10,500, so drivers shift up near 12,000 and keep the revs
+// high on the way down. Speeds are what each gear does at 12,000 rpm.
+const TOP_KMH = 320;
+const GEAR_TOP = [0, 95, 130, 160, 190, 220, 250, 285, 320];
+const SHIFT_RPM = 12000;
+const LIMITER = 15000;
+const IDLE = 4000;
+const gearbox = { gear: 0, rpm: IDLE };
 
 function shift(kmh, throttle) {
   let g = gearbox.gear;
   if (g === 0 && (throttle > 0 || kmh > 1)) g = 1;
-  if (g > 0 && g < 6 && kmh > GEAR_TOP[g] * 0.98) g++;
-  if (g > 1 && kmh < GEAR_TOP[g] * 0.5) g--;
+  if (g > 0 && g < 8 && kmh > GEAR_TOP[g]) g++;
+  if (g > 1 && kmh < GEAR_TOP[g - 1] * 0.9) g--;
   if (kmh < 1 && throttle === 0) g = 0;
   gearbox.gear = g;
-  gearbox.rpm = g ? clamp((REDLINE * kmh) / GEAR_TOP[g], 3500, REDLINE) : 900;
+  gearbox.rpm = g ? clamp((SHIFT_RPM * kmh) / GEAR_TOP[g], IDLE, LIMITER) : IDLE;
 }
 
 const revs = $('revs');
@@ -401,10 +405,11 @@ const fmt = (t) => (t === null ? '–:––.–' : `${Math.floor(t / 60)}:${(t 
 let hudTick = 0;
 
 function hud(auto, c) {
-  const kmh = (car.speed / MAX_SPEED) * 260;
+  const kmh = (car.speed / MAX_SPEED) * TOP_KMH;
   shift(kmh, c.throttle);
-  const lit = Math.round(clamp((gearbox.rpm - 7000) / (REDLINE * 0.98 - 7000), 0, 1) * 15);
-  revs.classList.toggle('limit', gearbox.rpm >= REDLINE * 0.98 && gearbox.gear < 6);
+  // Like the wheel's LEDs: they start at 10,000 and are all lit at the shift point.
+  const lit = Math.round(clamp((gearbox.rpm - 10000) / (SHIFT_RPM * 0.98 - 10000), 0, 1) * 15);
+  revs.classList.toggle('limit', gearbox.rpm >= SHIFT_RPM * 0.98 && gearbox.gear < 8);
   [...revs.children].forEach((led, i) => led.classList.toggle('on', i < lit));
   if (++hudTick % 4) return;
   $('gear').textContent = gearbox.gear || 'N';
