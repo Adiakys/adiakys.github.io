@@ -1,4 +1,4 @@
-import { buildTrack, SEG, ROAD_W, ROOF, WALLS } from './track.js';
+import { buildTrack, SEG, ROAD_W, TOP, ARMCO, PIT_WALL } from './track.js';
 import { makeArt } from './art.js';
 import { createInput } from './input.js';
 import { SPONSORS, readSponsorInfo } from './sponsors.js';
@@ -21,17 +21,20 @@ const BRAKING = -MAX_SPEED;
 const DECEL = -MAX_SPEED / 5;
 const OFFROAD_DECEL = -MAX_SPEED / 2;
 const OFFROAD_LIMIT = MAX_SPEED / 4;
-const CENTRIFUGAL = 0.3;
+const CENTRIFUGAL = 0.5;     // with the bends in track.js: 55 km/h at the hairpin
+const GRAVEL_DECEL = -MAX_SPEED * 1.2;
 const CAR_HALF = 0.16;    // half the car's width, in half road widths
 
+// Late afternoon in the Langhe.
 const COLORS = {
-  ground: { side: ['#25332d', '#22302a'], road: ['#2c2e33', '#2a2c30'], wall: ['#c9c6bd', '#b9b6ad'] },
-  ramp: { side: ['#34373d', '#303338'], road: ['#3a3c41', '#36383d'], wall: ['#5b5e66', '#53565e'] },
-  roof: { side: ['#6f7176', '#6a6c71'], road: ['#45474c', '#424449'], wall: ['#8d8f94', '#84868b'] },
+  grass: ['#6f8f3e', '#698838'],
+  gravel: ['#d8c49a', '#d0bb90'],
+  road: ['#4a4b4f', '#47484c'],
   kerb: ['#d63a2f', '#f2f0ea'],
-  edge: ['#5a5c62', '#55575d'],
-  lane: '#e8e6df',
-  fog: [44, 40, 58],
+  line: '#ecebe6',
+  armco: ['#c3c6ca', '#b3b6ba'],
+  pitWall: ['#e9e7e1', '#dddbd5'],
+  fog: [236, 214, 178],
 };
 
 const track = buildTrack();
@@ -70,14 +73,24 @@ addEventListener('resize', resize);
 
 const segAt = (z) => track.segments[Math.floor(z / SEG) % track.segments.length];
 
+// The fastest a corner can be taken with the wheel at full lock, with a margin.
+const cornerSpeed = (curve) => Math.min(MAX_SPEED, (0.85 * MAX_SPEED) / (Math.abs(curve) * CENTRIFUGAL || 1e-6));
+
 function autopilot(seg, sp) {
   const scroll = input.scroll();
-  const cruise = reduceMotion && Math.abs(scroll) < 0.05 ? 0 : 0.5 + Math.max(0, scroll) * 0.45;
-  const target = MAX_SPEED * cruise * (1 - Math.min(Math.abs(seg.curve) / 12, 0.25));
+  const cruise = reduceMotion && Math.abs(scroll) < 0.05 ? 0 : 0.7 + Math.max(0, scroll) * 0.3;
+  // Brake in time for whatever is coming: v² = v_corner² + 2·a·distance.
+  let target = MAX_SPEED * cruise;
+  const n = track.segments.length;
+  for (let i = 0; i < 160; i++) {
+    const c = track.segments[(seg.index + i) % n].curve;
+    if (Math.abs(c) < 0.3) continue;
+    target = Math.min(target, Math.sqrt(cornerSpeed(c) ** 2 + 2 * (-BRAKING * 0.5) * i * SEG));
+  }
   return {
     steer: clamp(sp * seg.curve * CENTRIFUGAL - car.x * 1.5, -1, 1),
     throttle: car.speed < target ? 1 : 0,
-    brake: car.speed > target * 1.1 || scroll < -0.3 ? 0.6 : 0,
+    brake: car.speed > target * 1.05 || scroll < -0.3 ? 0.7 : 0,
   };
 }
 
@@ -95,9 +108,9 @@ function update(dt) {
   if (c.throttle > 0) car.speed += ACCEL * c.throttle * dt;
   else car.speed += DECEL * dt;
   car.speed += BRAKING * c.brake * dt;
-  if (Math.abs(car.x) > 1 && car.speed > OFFROAD_LIMIT) car.speed += OFFROAD_DECEL * dt;
+  if (Math.abs(car.x) > 1 && car.speed > OFFROAD_LIMIT) car.speed += (seg.gravel ? GRAVEL_DECEL : OFFROAD_DECEL) * dt;
 
-  const wall = WALLS[seg.zone].at - CAR_HALF;
+  const wall = (car.x < 0 ? barrier(seg, -1) : ARMCO).at - CAR_HALF;
   if (Math.abs(car.x) > wall) {
     car.x = Math.sign(car.x) * wall;
     car.speed *= 0.6;
@@ -148,18 +161,18 @@ const fogStyle = (a) => `rgba(${COLORS.fog.join(',')},${a.toFixed(3)})`;
 
 function drawSky(playerY) {
   const sky = ctx.createLinearGradient(0, 0, 0, H / 2);
-  sky.addColorStop(0, '#0e1424');
-  sky.addColorStop(0.6, '#3b2f4a');
-  sky.addColorStop(1, '#c8735a');
+  sky.addColorStop(0, '#5f86b3');
+  sky.addColorStop(0.55, '#b7c3cc');
+  sky.addColorStop(1, '#f1cf9f');
   ctx.fillStyle = sky;
   ctx.fillRect(0, 0, W, H / 2 + 2);
   ctx.fillStyle = 'rgb(' + COLORS.fog.join(',') + ')';
   ctx.fillRect(0, H / 2, W, H / 2);
 
-  // The higher the car, the lower the skyline sits under the horizon.
-  const lift = playerY / ROOF;
-  layer(art.alps, 0.35, H / 2 + lift * H * 0.015, H * 0.16);
-  layer(art.city, 1, H / 2 + lift * H * 0.035, H * 0.13);
+  // The higher the car, the lower the hills sit under the horizon.
+  const lift = playerY / TOP;
+  layer(art.alps, 0.3, H / 2 + lift * H * 0.01, H * 0.15);
+  layer(art.hills, 0.8, H / 2 + H * 0.01 + lift * H * 0.04, H * 0.13);
 }
 
 function layer(img, speed, bottom, height) {
@@ -207,17 +220,23 @@ function drawRoad() {
 
 function segment(s) {
   const { p1: { screen: a }, p2: { screen: b } } = s;
-  const col = COLORS[s.zone];
   const k = s.dark ? 1 : 0;
 
-  ctx.fillStyle = col.side[k];
+  ctx.fillStyle = COLORS.grass[k];
   ctx.fillRect(0, b.y, W, a.y - b.y);
+  // Gravel traps around the slow corners, out to the armco.
+  if (s.gravel) quad(a.x, a.y, a.w * ARMCO.at, b.x, b.y, b.w * ARMCO.at, COLORS.gravel[k]);
 
-  const r1 = a.w / 7, r2 = b.w / 7;
-  const kerb = Math.abs(s.curve) > 0.5 ? COLORS.kerb[k] : COLORS.edge[k];
-  quad(a.x - a.w - r1 / 2, a.y, r1 / 2, b.x - b.w - r2 / 2, b.y, r2 / 2, kerb);
-  quad(a.x + a.w + r1 / 2, a.y, r1 / 2, b.x + b.w + r2 / 2, b.y, r2 / 2, kerb);
-  quad(a.x, a.y, a.w, b.x, b.y, b.w, col.road[k]);
+  quad(a.x, a.y, a.w, b.x, b.y, b.w, COLORS.road[k]);
+  if (Math.abs(s.curve) > 0.8) {
+    const r1 = a.w / 7, r2 = b.w / 7;
+    quad(a.x - a.w - r1 / 2, a.y, r1 / 2, b.x - b.w - r2 / 2, b.y, r2 / 2, COLORS.kerb[k]);
+    quad(a.x + a.w + r1 / 2, a.y, r1 / 2, b.x + b.w + r2 / 2, b.y, r2 / 2, COLORS.kerb[k]);
+  } else {
+    const l1 = a.w / 40, l2 = b.w / 40;
+    quad(a.x - a.w + l1, a.y, l1, b.x - b.w + l2, b.y, l2, COLORS.line);
+    quad(a.x + a.w - l1, a.y, l1, b.x + b.w - l2, b.y, l2, COLORS.line);
+  }
 
   if (s.index < 3) {
     // Start line: a row of checks across the road.
@@ -233,8 +252,6 @@ function segment(s) {
       ctx.lineTo(a.x + a.w * t2, a.y);
       ctx.fill();
     }
-  } else if (!s.dark) {
-    quad(a.x, a.y, a.w / 60, b.x, b.y, b.w / 60, COLORS.lane);
   }
 
   if (s.fog > 0.01) {
@@ -243,13 +260,16 @@ function segment(s) {
   }
 }
 
+// The pit wall runs along the left of the main straight; armco everywhere else.
+const barrier = (s, side) => (side < 0 && s.straight ? PIT_WALL : ARMCO);
+
 function wall(s, side) {
-  const { at, h } = WALLS[s.zone];
+  const { at, h } = barrier(s, side);
   const a = s.p1.screen, b = s.p2.screen;
   if (s.p1.camera.z <= CAM_DEPTH) return;
   const xa = a.x + side * at * a.w, xb = b.x + side * at * b.w;
   const ha = h * a.scale * W / 2, hb = h * b.scale * W / 2;
-  ctx.fillStyle = COLORS[s.zone].wall[s.dark ? 1 : 0];
+  ctx.fillStyle = (barrier(s, side) === PIT_WALL ? COLORS.pitWall : COLORS.armco)[s.dark ? 1 : 0];
   ctx.beginPath();
   ctx.moveTo(xa, a.y);
   ctx.lineTo(xb, b.y);
@@ -317,7 +337,7 @@ function drawMinimap() {
   const pad = w * 0.1;
   const k = Math.min((w - 2 * pad) / (maxX - minX), (h - 2 * pad) / (maxZ - minZ));
   const ox = (w - (maxX - minX) * k) / 2, oz = (h - (maxZ - minZ) * k) / 2;
-  const at = (p) => [ox + (p.x - minX) * k, oz + (p.z - minZ) * k];
+  const at = (p) => [ox + (p.x - minX) * k, oz + (maxZ - p.z) * k];
 
   mctx.clearRect(0, 0, w, h);
   mctx.lineCap = mctx.lineJoin = 'round';
@@ -335,25 +355,27 @@ function drawMinimap() {
   mctx.fill();
 }
 
-// ---- HUD and the sponsor on screen -------------------------------------------
+// ---- HUD and the corner on screen ---------------------------------------------
 
-let shownSponsor = null;
-let sponsorUntil = 0;
+let shownCorner = null;
+let cornerUntil = 0;
 
-function sponsorOverlay(seg, now) {
-  const zone = track.zones.find((z) => seg.index >= z.from && seg.index < z.to);
-  if (zone) sponsorUntil = now + 1500;
-  const id = zone?.id ?? (now < sponsorUntil ? shownSponsor : null);
-  if (id === shownSponsor) return;
-  shownSponsor = id;
+// Every corner gets a caption, like on TV; the ones named after a project link to it.
+function cornerCaption(seg, now) {
+  if (seg.corner) cornerUntil = now + 1500;
+  const corner = seg.corner ?? (now < cornerUntil ? shownCorner : null);
+  if (corner === shownCorner) return;
+  shownCorner = corner;
   const box = $('lower-third');
-  if (!id) { box.classList.remove('on'); return; }
-  const s = SPONSORS[id], i = info[id];
-  box.style.setProperty('--sponsor', s.bg);
-  box.querySelector('.title').textContent = i.title;
-  box.querySelector('.title').href = i.href;
-  box.querySelector('.what').textContent = i.text;
-  box.querySelector('.tech').textContent = i.tech;
+  if (!corner) { box.classList.remove('on'); return; }
+  const i = corner.id ? info[corner.id] : null;
+  const title = box.querySelector('.title');
+  box.style.setProperty('--sponsor', corner.id ? SPONSORS[corner.id].bg : 'var(--ink)');
+  box.querySelector('.kicker').textContent = `Turn ${corner.number}`;
+  title.textContent = corner.name;
+  if (i) title.href = i.href; else title.removeAttribute('href');
+  box.querySelector('.what').textContent = i ? i.text : '';
+  box.querySelector('.tech').textContent = i ? i.tech : '';
   box.classList.add('on');
 }
 
@@ -373,10 +395,10 @@ function hud(auto) {
 }
 
 function readBest() {
-  try { return JSON.parse(localStorage.getItem('best-lap')); } catch { return null; }
+  try { return JSON.parse(localStorage.getItem('best-lap-langhe')); } catch { return null; }
 }
 function saveBest(t) {
-  try { localStorage.setItem('best-lap', JSON.stringify(t)); } catch { /* private mode */ }
+  try { localStorage.setItem('best-lap-langhe', JSON.stringify(t)); } catch { /* private mode */ }
 }
 
 // ---- Loop -------------------------------------------------------------------
@@ -389,7 +411,7 @@ function frame(now) {
   drawRoad();
   drawCar(c);
   drawMinimap();
-  sponsorOverlay(seg, now);
+  cornerCaption(seg, now);
   hud(auto);
   requestAnimationFrame(frame);
 }

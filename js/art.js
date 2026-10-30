@@ -1,5 +1,5 @@
 // Everything drawn once at start-up onto offscreen canvases: the boards,
-// the scenery, the skyline and the car.
+// the Langhe around the track, the skyline and the car.
 import { SPONSORS } from './sponsors.js';
 
 const FONT = '"Barlow Condensed", "Arial Narrow", sans-serif';
@@ -17,10 +17,14 @@ export function makeArt() {
   for (const [id, s] of Object.entries(SPONSORS)) boards[id] = { img: board(s), w: 2600 };
   return {
     boards,
-    tree: { img: tree(), w: 1500 },
-    lamp: { img: lamp(), w: 260 },
+    tree: { img: tree(), w: 1700 },
+    cypress: { img: cypress(), w: 700 },
+    vines: { img: vines(), w: 3200 },
+    farm: { img: farm(), w: 5200 },
+    stand: { img: stand(), w: 9000 },
+    tower: { img: tower(), w: 9000 },
     alps: alps(),
-    city: city(),
+    hills: hills(),
     car: car(),
   };
 }
@@ -52,29 +56,111 @@ function board(s) {
 
 function tree() {
   const [c, g] = canvas(256, 380);
-  g.fillStyle = '#2a211c';
+  g.fillStyle = '#4a3a2a';
   g.fillRect(118, 250, 20, 130);
   const blobs = [[128, 150, 100], [80, 200, 70], [178, 205, 72], [128, 90, 70]];
-  g.fillStyle = '#18291f';
+  g.fillStyle = '#3f5a2a';
   for (const [x, y, r] of blobs) { g.beginPath(); g.arc(x, y, r, 0, Math.PI * 2); g.fill(); }
-  g.fillStyle = '#223a2b';
-  for (const [x, y, r] of blobs) { g.beginPath(); g.arc(x - r * 0.2, y - r * 0.25, r * 0.6, 0, Math.PI * 2); g.fill(); }
+  g.fillStyle = '#5c7a35';
+  for (const [x, y, r] of blobs) { g.beginPath(); g.arc(x - r * 0.25, y - r * 0.3, r * 0.55, 0, Math.PI * 2); g.fill(); }
   return c;
 }
 
-function lamp() {
-  const [c, g] = canvas(64, 640);
-  g.fillStyle = '#2b2d31';
-  g.fillRect(28, 40, 8, 600);
-  const glow = g.createRadialGradient(32, 40, 2, 32, 40, 30);
-  glow.addColorStop(0, 'rgba(255,222,160,1)');
-  glow.addColorStop(1, 'rgba(255,222,160,0)');
-  g.fillStyle = glow;
-  g.fillRect(0, 10, 64, 60);
+function cypress() {
+  const [c, g] = canvas(100, 420);
+  g.fillStyle = '#4a3a2a';
+  g.fillRect(45, 380, 10, 40);
+  g.fillStyle = '#2c3f22';
+  g.beginPath();
+  g.moveTo(50, 0);
+  g.bezierCurveTo(95, 120, 90, 300, 50, 390);
+  g.bezierCurveTo(10, 300, 5, 120, 50, 0);
+  g.fill();
+  g.fillStyle = '#3d5530';
+  g.beginPath();
+  g.moveTo(50, 10);
+  g.bezierCurveTo(30, 120, 28, 280, 48, 380);
+  g.bezierCurveTo(20, 280, 18, 120, 50, 10);
+  g.fill();
   return c;
 }
 
-// A seeded random, so the skyline is the same on every visit.
+// A row of vines on its posts, as seen along the row.
+function vines() {
+  const [c, g] = canvas(512, 120);
+  g.fillStyle = '#6b5a44';
+  for (let x = 20; x < 512; x += 120) g.fillRect(x, 20, 6, 100);
+  g.fillStyle = '#4f6b2c';
+  g.beginPath();
+  g.roundRect(0, 26, 512, 64, 30);
+  g.fill();
+  g.fillStyle = '#6d8c3a';
+  for (let x = 10; x < 500; x += 34) { g.beginPath(); g.arc(x, 40 + (x % 3) * 6, 18, 0, Math.PI * 2); g.fill(); }
+  g.fillStyle = '#7a3a4a';
+  for (let x = 30; x < 500; x += 61) { g.beginPath(); g.arc(x, 82, 7, 0, Math.PI * 2); g.fill(); }
+  return c;
+}
+
+// A cascina: ochre walls, terracotta roof, a lean-to.
+function farm() {
+  const [c, g] = canvas(520, 260);
+  g.fillStyle = '#d8b07a';
+  g.fillRect(40, 110, 300, 150);
+  g.fillStyle = '#c99a62';
+  g.fillRect(340, 150, 150, 110);
+  g.fillStyle = '#a5502f';
+  g.beginPath(); g.moveTo(20, 115); g.lineTo(190, 40); g.lineTo(360, 115); g.fill();
+  g.beginPath(); g.moveTo(330, 155); g.lineTo(500, 130); g.lineTo(500, 155); g.fill();
+  g.fillStyle = '#3b2c24';
+  for (const x of [80, 150, 220, 290]) { g.fillRect(x, 150, 26, 34); g.fillRect(x, 210, 26, 40); }
+  g.fillRect(380, 190, 70, 70);
+  return c;
+}
+
+function stand() {
+  const [c, g] = canvas(1024, 380);
+  g.fillStyle = '#d9d6cf';
+  g.fillRect(0, 40, 1024, 18);
+  g.fillStyle = '#9da1a6';
+  for (const x of [20, 500, 990]) g.fillRect(x, 58, 14, 322);
+  const r = rng(5);
+  const colors = ['#f2f0ea', '#ff5a1f', '#2f6bff', '#e8c547', '#c44', '#3a3f46'];
+  for (let row = 0; row < 9; row++) {
+    const y = 90 + row * 30;
+    g.fillStyle = '#5d6168';
+    g.fillRect(0, y + 18, 1024, 12);
+    for (let x = 6; x < 1020; x += 13) {
+      if (r() < 0.25) continue;
+      g.fillStyle = colors[Math.floor(r() * colors.length)];
+      g.fillRect(x, y + 4 - row * 0.5, 8, 14);
+    }
+  }
+  return c;
+}
+
+// The village on its hill, with the tower that names the Curva del Borgo.
+function tower() {
+  const [c, g] = canvas(900, 560);
+  g.fillStyle = '#6f8a48';
+  g.beginPath();
+  g.moveTo(0, 560);
+  g.quadraticCurveTo(450, 180, 900, 560);
+  g.fill();
+  g.fillStyle = '#d3a873';
+  const houses = [[250, 360, 90, 70], [330, 330, 80, 80], [520, 340, 110, 70], [600, 370, 80, 60], [180, 400, 80, 60]];
+  for (const [x, y, w, h] of houses) g.fillRect(x, y, w, h);
+  g.fillStyle = '#a5502f';
+  for (const [x, y, w] of houses) { g.beginPath(); g.moveTo(x - 6, y + 4); g.lineTo(x + w / 2, y - 26); g.lineTo(x + w + 6, y + 4); g.fill(); }
+  g.fillStyle = '#b98e5c';
+  g.fillRect(420, 110, 70, 260);
+  g.fillStyle = '#8f6a42';
+  for (let x = 416; x < 490; x += 18) g.fillRect(x, 96, 12, 16);
+  g.fillStyle = '#3b2c24';
+  g.fillRect(446, 160, 18, 30);
+  return c;
+}
+
+// A seeded random, so the scenery is the same on every visit.
 function rng(seed) {
   return () => ((seed = (seed * 16807) % 2147483647) / 2147483647);
 }
@@ -90,12 +176,12 @@ function alps() {
   g.moveTo(0, 300);
   for (const [x, y] of peaks) g.lineTo(x, y);
   g.lineTo(2400, 300);
-  g.fillStyle = '#3a3f58';
+  g.fillStyle = '#a3a7c0';
   g.fill();
   // Snow: the top of each peak, clipped to the ridge.
   g.save();
   g.clip();
-  g.fillStyle = 'rgba(214,220,235,0.55)';
+  g.fillStyle = '#f4ece6';
   for (const [x, y] of peaks) {
     g.beginPath();
     g.moveTo(x - 50, y + 46);
@@ -107,47 +193,47 @@ function alps() {
   return c;
 }
 
-function city() {
+// The Langhe: rolling hills, ridges striped with vineyards, a castle or two.
+function hills() {
   const [c, g] = canvas(2400, 260);
   const r = rng(42);
-  g.fillStyle = '#141826';
-  // Superga on its hill.
-  g.beginPath();
-  g.moveTo(1500, 260);
-  g.quadraticCurveTo(1760, 60, 2040, 260);
-  g.fill();
-  g.fillRect(1745, 96, 30, 20);
-  g.beginPath();
-  g.arc(1760, 96, 15, Math.PI, 0);
-  g.fill();
-
-  const windows = [];
-  for (let x = 0; x < 2400; ) {
-    const w = 40 + r() * 90;
-    const h = 40 + r() * 110;
-    g.fillRect(x, 260 - h, w - 6, h);
-    for (let wy = 260 - h + 10; wy < 250; wy += 14)
-      for (let wx = x + 6; wx < x + w - 12; wx += 12) if (r() < 0.18) windows.push([wx, wy]);
-    x += w;
+  const ridge = (base, amp, color, seed) => {
+    const pts = [];
+    for (let x = 0; x <= 2400; x += 100) pts.push([x, base - amp * (0.5 + 0.5 * Math.sin(x / 260 + seed) * Math.cos(x / 410 + seed * 2))]);
+    pts[pts.length - 1][1] = pts[0][1];
+    g.fillStyle = color;
+    g.beginPath();
+    g.moveTo(0, 260);
+    pts.forEach(([x, y], i) => {
+      if (!i) return g.lineTo(x, y);
+      const [px, py] = pts[i - 1];
+      g.quadraticCurveTo(px + 50, py, (px + x) / 2 + 25, (py + y) / 2);
+    });
+    g.lineTo(2400, 260);
+    g.fill();
+    return pts;
+  };
+  ridge(150, 90, '#8c9a76', 1);
+  const near = ridge(210, 110, '#6f8a48', 4);
+  // Vineyard rows down the near hills.
+  g.strokeStyle = 'rgba(60,80,30,0.35)';
+  g.lineWidth = 3;
+  for (let x = 10; x < 2400; x += 14) {
+    const i = Math.min(near.length - 1, Math.floor(x / 100));
+    const top = near[i][1] + 14;
+    g.beginPath(); g.moveTo(x, top); g.lineTo(x - 30, 260); g.stroke();
   }
-  // The Mole Antonelliana.
-  const mx = 700;
-  g.fillRect(mx - 60, 170, 120, 90);
-  g.beginPath();
-  g.moveTo(mx - 56, 172);
-  g.quadraticCurveTo(mx - 30, 90, mx - 8, 60);
-  g.lineTo(mx + 8, 60);
-  g.quadraticCurveTo(mx + 30, 90, mx + 56, 172);
-  g.fill();
-  g.fillRect(mx - 9, 30, 18, 32);
-  g.beginPath();
-  g.moveTo(mx - 6, 30);
-  g.lineTo(mx, -10);
-  g.lineTo(mx + 6, 30);
-  g.fill();
-
-  g.fillStyle = '#ffcf7a';
-  for (const [x, y] of windows) g.fillRect(x, y, 4, 5);
+  // Castles on the ridges, like Barolo and Grinzane.
+  g.fillStyle = '#c99a62';
+  for (const x of [380, 1270, 1990]) {
+    const i = Math.floor(x / 100);
+    const y = Math.min(near[i][1], near[i + 1][1]) + 6;
+    g.fillRect(x, y - 34, 60, 34);
+    g.fillRect(x + 40, y - 62, 18, 30);
+    g.fillStyle = '#a5502f';
+    g.fillRect(x - 3, y - 38, 66, 6);
+    g.fillStyle = '#c99a62';
+  }
   return c;
 }
 
