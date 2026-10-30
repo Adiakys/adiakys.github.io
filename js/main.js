@@ -1,7 +1,9 @@
 import { buildTrack, SEG, ROAD_W, TOP, ARMCO, PIT_WALL, BAY_W } from './track.js';
 import { repoStats } from './github.js';
 import { makeArt } from './art.js';
-import { loadBrandImages, paintBoard } from './brands.js';
+import { CARS, RANK, drawCar as paintCar } from './cars.js';
+import { openLucky, luckyOpen } from './lucky.js';
+import { loadBrandImages, paintBoard, BOARD, LUCKY_BUTTON } from './brands.js';
 import { createInput } from './input.js';
 import { SPONSORS, readSponsorInfo } from './sponsors.js';
 
@@ -17,13 +19,14 @@ const CAM_H = 1000;
 const CAM_DEPTH = 1 / Math.tan((FOV / 2) * Math.PI / 180);
 const DRAW = 300;
 const PLAYER_Z = CAM_H * CAM_DEPTH;
+// The world's speed scale: MAX_SPEED is 320 km/h, the fastest car's top speed.
 const MAX_SPEED = SEG * 60;
-const ACCEL = MAX_SPEED / 5;
+const TOP_KMH = 320;
+const PACE = 1.5;    // race seconds per real second
 const BRAKING = -MAX_SPEED;
 const DECEL = -MAX_SPEED / 5;
 const OFFROAD_DECEL = -MAX_SPEED / 2;
 const OFFROAD_LIMIT = MAX_SPEED / 4;
-const CENTRIFUGAL = 0.5;     // with the bends in track.js: 55 km/h at the hairpin
 const GRAVEL_DECEL = -MAX_SPEED * 1.2;
 const CAR_HALF = 0.16;    // half the car's width, in half road widths
 
@@ -70,7 +73,7 @@ $('cal-skip').addEventListener('click', () => input.skipCalibration());
 // the project's billboard until it fills the screen. Driving off, Esc or a click
 // elsewhere zooms back out; Enter or a click on the billboard opens GitHub.
 const ZOOM_S = 0.8;
-const view = { bay: null, source: null, z: 0, dir: 0, rect: null, m: null, dismissed: null };
+const view = { bay: null, source: null, z: 0, dir: 0, rect: null, m: null, dismissed: null, still: 0 };
 const hint = $('board-hint');
 // Where the bay billboards were drawn in the last frame, in canvas pixels
 // before the zoom.
@@ -89,10 +92,46 @@ function focus(bay, source) {
 
 function unfocus(source) {
   if (!view.bay || view.dir < 0 || (source && view.source !== source)) return;
-  if (view.source === 'bay') view.dismissed = view.bay.id;
+  // Closed by hand (Esc, a click elsewhere) during a tour stop: move on now.
+  if (!source && view.source === 'tour') tour.until = 0;
   view.dir = -1;
   hint.hidden = true;
   document.body.classList.remove('zoomed');
+}
+
+// The Feeling Lucky button: a real button laid over the one painted on its
+// billboard, once the camera has zoomed in. It opens the casino room.
+const luckyButton = $('lucky-button');
+luckyButton.querySelector('.bulbs').innerHTML = Array.from({ length: 22 }, (_, i) => {
+  // Around the edge: along the top, down the right, back along the bottom, up the left.
+  const t = i / 22, p = t * 4, side = Math.floor(p), f = p - side;
+  const [x, y] = [[f, 0], [1, f], [1 - f, 1], [0, 1 - f]][side];
+  return `<i style="--i:${i};left:${(x * 100).toFixed(1)}%;top:${(y * 100).toFixed(1)}%"></i>`;
+}).join('');
+luckyButton.addEventListener('click', () => openLucky(luckyButton, winCar));
+
+// While the tour waits at a billboard, the hint shows how long is left.
+function tourCountdown(now) {
+  const waiting = !!tour.stop && view.source === 'tour';
+  hint.querySelector('.stay').hidden = !waiting;
+  hint.querySelector('.countdown').hidden = !waiting;
+  if (waiting) {
+    const left = clamp((tour.until - now) / TOUR_STOP_MS, 0, 1);
+    hint.querySelector('.countdown i').style.transform = `scaleX(${left})`;
+  }
+}
+
+function placeLuckyButton() {
+  const r = view.rect, m = view.m;
+  const show = view.bay?.id === 'lucky' && view.dir > 0 && zoomEase > 0.92 && r && m && !luckyOpen();
+  luckyButton.hidden = !show;
+  if (!show) return;
+  const k = W / innerWidth;
+  const x = (m.S * (r.x + (LUCKY_BUTTON.x / BOARD.w) * r.w) + m.tx) / k;
+  const y = (m.S * (r.y + (LUCKY_BUTTON.y / BOARD.h) * r.full) + m.ty) / k;
+  const w = (m.S * (LUCKY_BUTTON.w / BOARD.w) * r.w) / k;
+  const h = (m.S * (LUCKY_BUTTON.h / BOARD.h) * r.full) / k;
+  Object.assign(luckyButton.style, { left: `${x}px`, top: `${y}px`, width: `${w}px`, height: `${h}px`, fontSize: `${h * 0.18}px` });
 }
 
 const openRepo = () => view.bay && window.open(info[view.bay.id].href, '_blank', 'noopener');
@@ -136,8 +175,12 @@ canvas.addEventListener('mousemove', (e) => {
   canvas.style.cursor = hitAt(canvasPoint(e)) ? 'pointer' : '';
 });
 addEventListener('keydown', (e) => {
-  if (!view.bay || view.dir < 0) return;
-  if (e.key === 'Escape') unfocus();
+  if (!view.bay || view.dir < 0 || luckyOpen()) return;
+  // Esc is a clear "no thanks": that bay stays quiet until you leave it.
+  if (e.key === 'Escape') {
+    if (view.source === 'bay') view.dismissed = view.bay.id;
+    unfocus();
+  }
   if (e.key === 'Enter' && e.target === document.body) openRepo();
 });
 $('recal').addEventListener('click', () => input.recalibrate());
@@ -156,12 +199,43 @@ addEventListener('resize', resize);
 
 const segAt = (z) => track.segments[Math.floor(z / SEG) % track.segments.length];
 
+// The car you drive, from your garage: the trofeo hatch to begin with, then
+// whatever Feeling Lucky gives you. Kept in this browser.
+const garage = readGarage();
+let spec = CARS[garage.current];
+let carImage = null;
+const topSpeed = () => (MAX_SPEED * spec.top) / TOP_KMH;
+
+function readGarage() {
+  try {
+    const g = JSON.parse(localStorage.getItem('garage'));
+    if (g && CARS[g.current]) return g;
+  } catch { /* no storage */ }
+  return { owned: ['trofeo'], current: 'trofeo' };
+}
+
+// A car won: it joins the garage, and you drive it if it beats yours.
+function winCar(id) {
+  if (!garage.owned.includes(id)) garage.owned.push(id);
+  if (RANK.indexOf(id) > RANK.indexOf(garage.current)) {
+    garage.current = id;
+    spec = CARS[id];
+    carImage = paintCar(id);
+  }
+  try { localStorage.setItem('garage', JSON.stringify(garage)); } catch { /* private mode */ }
+}
+
 // The fastest a corner can be taken with the wheel at full lock, with a margin.
-const cornerSpeed = (curve) => Math.min(MAX_SPEED, (0.85 * MAX_SPEED) / (Math.abs(curve) * CENTRIFUGAL || 1e-6));
+const cornerSpeed = (curve) => Math.min(topSpeed(), (0.92 * MAX_SPEED) / (Math.abs(curve) * spec.slide || 1e-6));
 
 // When nobody drives, the autopilot gives a tour: it pulls into every bay,
 // zooms onto the billboard for a while, then carries on. Once per lap.
-const TOUR_STOP_MS = 7000;
+const TOUR_STOP_MS = 5000;
+// Moving the mouse while the tour waits at a billboard means someone is
+// reading: the wait starts over.
+addEventListener('pointermove', () => {
+  if (tour.stop) tour.until = Math.max(tour.until, performance.now() + TOUR_STOP_MS);
+});
 const tour = { visited: new Set(), stop: null, until: 0 };
 
 function nextBay(seg) {
@@ -191,14 +265,14 @@ function autopilot(seg, sp, now, dt) {
   }
   const next = nextBay(seg);
   let aimX = 0;
-  const cruise = reduceMotion && Math.abs(scroll) < 0.05 ? 0 : 0.7 + Math.max(0, scroll) * 0.3;
+  const cruise = reduceMotion && Math.abs(scroll) < 0.05 ? 0 : 0.95 + Math.max(0, scroll) * 0.05;
   // Brake in time for whatever is coming: v² = v_corner² + 2·a·distance.
-  let target = MAX_SPEED * cruise;
+  let target = topSpeed() * cruise;
   const n = track.segments.length;
   for (let i = 0; i < 160; i++) {
     const c = track.segments[(seg.index + i) % n].curve;
     if (Math.abs(c) < 0.3) continue;
-    target = Math.min(target, Math.sqrt(cornerSpeed(c) ** 2 + 2 * (-BRAKING * 0.5) * i * SEG));
+    target = Math.min(target, Math.sqrt(cornerSpeed(c) ** 2 + 2 * (-BRAKING * 0.7) * i * SEG));
   }
   if (next && !reduceMotion) {
     const { bay, dist } = next;
@@ -208,7 +282,7 @@ function autopilot(seg, sp, now, dt) {
     const inside = seg.bay?.id === bay.id;
     if (dist < 160) aimX = bay.side * (inside ? 1 + BAY_W * 0.5 * seg.bay.open : 0.85);
     const floor = inside && Math.abs(aimX - car.x) > 0.15 ? 0.12 : 0.04;
-    target = Math.min(target, Math.max(MAX_SPEED * floor, Math.sqrt(2 * (-BRAKING * 0.3) * dist * SEG)));
+    target = Math.min(target, Math.max(MAX_SPEED * floor, Math.sqrt(2 * (-BRAKING * 0.5) * dist * SEG)));
     if (dist < 3 || (seg.bay?.id === bay.id && dist > track.segments.length / 2)) {
       if (car.speed < MAX_SPEED * 0.05) {
         tour.stop = bay;
@@ -219,7 +293,7 @@ function autopilot(seg, sp, now, dt) {
     }
   }
   pilot.aim = approach(pilot.aim, aimX, dt * 1.3);
-  const want = clamp(sp * seg.curve * CENTRIFUGAL + (pilot.aim - car.x) * 1.2, -1, 1);
+  const want = clamp(sp * seg.curve * spec.slide + (pilot.aim - car.x) * 1.2, -1, 1);
   pilot.steer = approach(pilot.steer, want, dt * 4);
   const gap = target - car.speed;
   return {
@@ -234,7 +308,17 @@ function update(dt, now) {
   const seg = segAt(car.position + PLAYER_Z);
   const sp = car.speed / MAX_SPEED;
   const auto = input.idle();
-  if (!auto && tour.stop) { tour.stop = null; unfocus('tour'); }
+  // The casino room is open: the race waits, and so does the tour's stop.
+  if (luckyOpen()) {
+    tour.until += dt * 1000;
+    return { seg, c: { steer: 0, throttle: 0, brake: 1 }, auto };
+  }
+  // Taking the wheel during a tour stop: the camera stays on the billboard
+  // until you drive off, as if you had stopped there yourself.
+  if (!auto && tour.stop) {
+    tour.stop = null;
+    if (view.source === 'tour') view.source = 'bay';
+  }
   // A billboard you clicked holds the race until you zoom back out; any input does.
   if (view.bay && view.source === 'click') {
     const s = input.state;
@@ -242,24 +326,30 @@ function update(dt, now) {
     return { seg, c: { steer: 0, throttle: 0, brake: 0 }, auto };
   }
   if (!auto) Object.assign(pilot, { aim: car.x, steer: input.state.steer });
-  const c = auto ? autopilot(seg, sp, now, dt) : input.state;
+  // Race time runs a bit quicker than the clock, so a lap doesn't drag.
+  const t = dt * PACE;
+  const c = auto ? autopilot(seg, sp, now, t) : input.state;
 
-  const dx = dt * 2 * sp;
+  const dx = t * 2 * sp;
   car.x += dx * c.steer;
-  car.x -= dx * sp * seg.curve * CENTRIFUGAL;
+  car.x -= dx * sp * seg.curve * spec.slide;
 
-  if (c.throttle > 0) car.speed += ACCEL * c.throttle * dt;
-  else car.speed += DECEL * dt;
-  car.speed += BRAKING * c.brake * dt;
+  if (c.throttle > 0) car.speed += (topSpeed() / spec.accel) * c.throttle * t;
+  else car.speed += DECEL * t;
+  car.speed += BRAKING * c.brake * t;
   // A bay widens the road on its side.
   const inBay = seg.bay && Math.sign(car.x) === seg.bay.side;
   const edge = inBay ? 1 + BAY_W * seg.bay.open : 1;
-  if (Math.abs(car.x) > edge && car.speed > OFFROAD_LIMIT) car.speed += (seg.gravel ? GRAVEL_DECEL : OFFROAD_DECEL) * dt;
+  if (Math.abs(car.x) > edge && car.speed > OFFROAD_LIMIT) car.speed += (seg.gravel ? GRAVEL_DECEL : OFFROAD_DECEL) * t;
 
   // Stopped in a bay: show its project. Driving off closes it.
   const kmh = sp * TOP_KMH;
+  // Half a second standing still in a bay brings the camera onto its billboard,
+  // also again after a touch of throttle; only Esc keeps that bay quiet.
   if (seg.bay?.id !== view.dismissed) view.dismissed = null;
-  if (!auto && inBay && Math.abs(car.x) > 1.05 && kmh < 8 && c.throttle < 0.1 && view.dismissed !== seg.bay.id) focus(seg.bay, 'bay');
+  const still = !auto && inBay && Math.abs(car.x) > 1.05 && kmh < 3 && c.throttle < 0.1;
+  view.still = still ? view.still + dt : 0;
+  if (view.still > 0.5 && view.dismissed !== seg.bay.id) focus(seg.bay, 'bay');
   if (c.throttle > 0.1 || kmh > 20) unfocus('bay');
 
   const wall = (car.x < 0 ? barrier(seg, -1) : ARMCO).at - CAR_HALF;
@@ -268,12 +358,12 @@ function update(dt, now) {
     car.speed *= 0.6;
     car.bump = 1;
   }
-  car.speed = clamp(car.speed, 0, MAX_SPEED);
+  car.speed = clamp(car.speed, 0, topSpeed());
   car.bump = Math.max(0, car.bump - dt * 3);
 
   const before = car.position;
-  car.position = (car.position + dt * car.speed) % track.length;
-  skyOffset += dt * 0.0012 * seg.curve * sp;
+  car.position = (car.position + t * car.speed) % track.length;
+  skyOffset += t * 0.0012 * seg.curve * sp;
 
   lap.time += dt;
   if (car.position < before) {
@@ -509,7 +599,7 @@ function sprite(s, sp, alpha = 1) {
 }
 
 function drawCar(c) {
-  const img = art.car;
+  const img = carImage;
   const narrow = innerWidth <= 720;
   const w = narrow ? W * 0.5 : Math.min(W * 0.3, H * 0.62);
   const h = (w * img.height) / img.width;
@@ -527,7 +617,7 @@ function drawCar(c) {
     ctx.fillStyle = '#ff2a1a';
     ctx.shadowColor = '#ff2a1a';
     ctx.shadowBlur = 30 * k * 3;
-    ctx.fillRect(-w / 2 + 304 * k, -h / 2 + 214 * k, 32 * k, 16 * k);
+    for (const [lx, ly, lw, lh] of spec.lights) ctx.fillRect(-w / 2 + lx * k, -h / 2 + ly * k, lw * k, lh * k);
   }
   ctx.restore();
 }
@@ -589,24 +679,20 @@ function cornerBanner(seg, now) {
   box.classList.add('on');
 }
 
-// A current F1 gearbox: eight gears, a 15,000 rpm limiter, but the fuel flow
-// limit peaks around 10,500, so drivers shift up near 12,000 and keep the revs
-// high on the way down. Speeds are what each gear does at 12,000 rpm.
-const TOP_KMH = 320;
-const GEAR_TOP = [0, 95, 130, 160, 190, 220, 250, 285, 320];
-const SHIFT_RPM = 12000;
-const LIMITER = 15000;
-const IDLE = 4000;
-const gearbox = { gear: 0, rpm: IDLE };
+// Each car's own gearbox (cars.js): shift up at its shift point, keep the
+// revs high on the way down. The F1 has eight gears and a 15,000 limiter but
+// shifts near 12,000, where the fuel-flow limit makes the power.
+const gearbox = { gear: 0, rpm: 0 };
 
 function shift(kmh, throttle) {
-  let g = gearbox.gear;
+  const tops = spec.gears, last = tops.length - 1;
+  let g = Math.min(gearbox.gear, last);
   if (g === 0 && (throttle > 0 || kmh > 1)) g = 1;
-  if (g > 0 && g < 8 && kmh > GEAR_TOP[g]) g++;
-  if (g > 1 && kmh < GEAR_TOP[g - 1] * 0.9) g--;
+  if (g > 0 && g < last && kmh > tops[g]) g++;
+  if (g > 1 && kmh < tops[g - 1] * 0.9) g--;
   if (kmh < 1 && throttle === 0) g = 0;
   gearbox.gear = g;
-  gearbox.rpm = g ? clamp((SHIFT_RPM * kmh) / GEAR_TOP[g], IDLE, LIMITER) : IDLE;
+  gearbox.rpm = g ? clamp((spec.shift * kmh) / tops[g], spec.idle, spec.limiter) : spec.idle;
 }
 
 const revs = $('revs');
@@ -617,9 +703,10 @@ let hudTick = 0;
 function hud(auto, c) {
   const kmh = (car.speed / MAX_SPEED) * TOP_KMH;
   shift(kmh, c.throttle);
-  // Like the wheel's LEDs: they start at 10,000 and are all lit at the shift point.
-  const lit = Math.round(clamp((gearbox.rpm - 10000) / (SHIFT_RPM * 0.98 - 10000), 0, 1) * 15);
-  revs.classList.toggle('limit', gearbox.rpm >= SHIFT_RPM * 0.98 && gearbox.gear < 8);
+  // Like the wheel's LEDs: they start a sixth below the shift point and are all lit at it.
+  const from = spec.shift * 0.83;
+  const lit = Math.round(clamp((gearbox.rpm - from) / (spec.shift * 0.98 - from), 0, 1) * 15);
+  revs.classList.toggle('limit', gearbox.rpm >= spec.shift * 0.98 && gearbox.gear < spec.gears.length - 1);
   [...revs.children].forEach((led, i) => led.classList.toggle('on', i < lit));
   if (++hudTick % 4) return;
   $('gear').textContent = gearbox.gear || 'N';
@@ -653,6 +740,8 @@ function frame(now) {
   drawRoad();
   if (zoom < 0.4) drawCar(c);
   ctx.setTransform(1, 0, 0, 1, 0, 0);
+  placeLuckyButton();
+  tourCountdown(now);
   drawMinimap();
   cornerBanner(seg, now);
   hud(auto, c);
@@ -667,6 +756,7 @@ const fonts = ['800 100px "Barlow Condensed"', '700 40px "Barlow Condensed"', '5
   'italic 500 40px Barlow', '800 40px "JetBrains Mono"', '500 40px "JetBrains Mono"', '40px Limelight'];
 Promise.all([loadBrandImages(), ...fonts.map((f) => document.fonts.load(f).catch(() => {}))]).then(([images]) => {
   art = makeArt(info, images);
+  carImage = paintCar(garage.current);
   // The billboards are painted with the page's text at once, then again with
   // the live numbers from GitHub when they come.
   for (const [id, board] of Object.entries(art.bigBoards))

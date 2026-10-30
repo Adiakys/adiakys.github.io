@@ -1,6 +1,6 @@
 // Everything drawn once at start-up onto offscreen canvases: the Langhe
-// around the track, the circuit's furniture, the skyline and the car. The
-// sponsors' billboards come from brands.js.
+// around the track, the circuit's furniture and the skyline. The sponsors'
+// billboards come from brands.js, the cars from cars.js.
 import { SPONSORS } from './sponsors.js';
 import { BOARD, paintBoard, paintHoarding } from './brands.js';
 
@@ -40,7 +40,6 @@ export function makeArt(info, images) {
     tower: { img: tower(), w: 9000 },
     alps: alps(),
     hills: hills(),
-    car: car(),
   };
 }
 
@@ -337,71 +336,3 @@ function hills() {
   return c;
 }
 
-function car() {
-  const [c, g] = canvas(640, 300);
-  const black = '#121316';
-  const orange = SPONSORS.simrig.accent;
-
-  // Shadow.
-  g.fillStyle = 'rgba(0,0,0,0.45)';
-  g.beginPath();
-  g.ellipse(320, 278, 300, 22, 0, 0, Math.PI * 2);
-  g.fill();
-
-  // Tyres.
-  const tyre = (x) => {
-    g.fillStyle = '#0b0b0d';
-    g.beginPath();
-    g.roundRect(x, 150, 130, 130, 18);
-    g.fill();
-    g.fillStyle = '#1e1f23';
-    for (let y = 160; y < 270; y += 14) g.fillRect(x + 10, y, 110, 4);
-  };
-  tyre(30);
-  tyre(480);
-
-  // Body and engine cover.
-  g.fillStyle = black;
-  g.beginPath();
-  g.moveTo(150, 260);
-  g.lineTo(190, 150);
-  g.lineTo(270, 110);
-  g.lineTo(370, 110);
-  g.lineTo(450, 150);
-  g.lineTo(490, 260);
-  g.closePath();
-  g.fill();
-  g.fillStyle = orange;
-  g.beginPath();
-  g.moveTo(300, 110);
-  g.lineTo(340, 110);
-  g.lineTo(356, 260);
-  g.lineTo(284, 260);
-  g.closePath();
-  g.fill();
-
-  // Diffuser.
-  g.fillStyle = '#26282d';
-  g.fillRect(190, 236, 260, 26);
-  g.fillStyle = black;
-  for (let x = 214; x < 440; x += 36) g.fillRect(x, 236, 6, 26);
-
-  // Rear wing: endplates, main plane, the sponsor on it.
-  g.fillStyle = black;
-  g.fillRect(70, 30, 18, 110);
-  g.fillRect(552, 30, 18, 110);
-  g.fillRect(300, 70, 12, 60);
-  g.fillRect(328, 70, 12, 60);
-  g.fillStyle = orange;
-  g.fillRect(70, 40, 500, 52);
-  g.fillStyle = black;
-  g.font = `800 50px ${FONT}`;
-  g.textAlign = 'center';
-  g.textBaseline = 'middle';
-  g.fillText('ADIAKYS', 320, 68);
-
-  // Rain light, off; the game draws it lit when braking.
-  g.fillStyle = '#3a1210';
-  g.fillRect(304, 214, 32, 16);
-  return c;
-}

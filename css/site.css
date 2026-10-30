@@ -148,7 +148,53 @@ a { color: inherit; }
 .board-hint[hidden] { display: none; }
 .board-hint .open { color: var(--accent); }
 .board-hint .back { color: var(--dim); margin-left: 8px; }
+.board-hint .stay { color: var(--dim); margin-left: 8px; }
+.board-hint .stay[hidden], .board-hint .countdown[hidden] { display: none; }
+/* How long the tour stays on this billboard; moving the mouse fills it up again. */
+.board-hint .countdown { position: absolute; left: 0; right: 0; bottom: 0; height: 3px; background: rgba(242, 240, 234, 0.12); }
+.board-hint .countdown i { display: block; height: 100%; background: var(--accent); transform-origin: left; }
 .board-hint kbd { padding: 1px 6px; border: 1px solid rgba(242, 240, 234, 0.35); font: 600 11px var(--cond); color: var(--dim); }
+
+/* The casino button laid over the Feeling Lucky billboard while the camera is on it. */
+.lucky-button {
+  position: fixed;
+  display: flex;
+  flex-direction: column;
+  align-items: center;
+  justify-content: center;
+  padding: 0;
+  border: 0.03em solid #d4af5a;
+  border-radius: 0.4em;
+  background: radial-gradient(ellipse at 50% 35%, #a52430, #6a1219 75%);
+  color: #e8c766;
+  font: 1em Limelight, Georgia, serif;
+  cursor: pointer;
+  box-shadow: 0 0 0.6em rgba(232, 199, 102, 0.55), inset 0 0 0.8em rgba(0, 0, 0, 0.5);
+}
+.lucky-button[hidden] { display: none; }
+.lucky-button .try { font-size: 1em; line-height: 1.1; white-space: nowrap; }
+.lucky-button .win { font: 500 0.54em Barlow, system-ui, sans-serif; color: #f1e6c8; margin-top: 0.3em; }
+.lucky-button .bulbs { position: absolute; inset: 0; pointer-events: none; }
+.lucky-button .bulbs i {
+  position: absolute;
+  width: 0.24em;
+  height: 0.24em;
+  margin: -0.12em;
+  border-radius: 50%;
+  background: #ffe9a8;
+  box-shadow: 0 0 0.3em #ffd45a;
+}
+.lucky-button:hover, .lucky-button:focus-visible { background: radial-gradient(ellipse at 50% 35%, #c42d3a, #7d1720 75%); }
+@media (prefers-reduced-motion: no-preference) {
+  .lucky-button { animation: lucky-glow 1.4s ease-in-out infinite; }
+  .lucky-button .bulbs i { animation: bulb 0.9s steps(1) infinite; animation-delay: calc(var(--i) * -0.09s); }
+}
+@keyframes lucky-glow {
+  50% { box-shadow: 0 0 1.2em rgba(232, 199, 102, 0.9), inset 0 0 0.8em rgba(0, 0, 0, 0.5); }
+}
+@keyframes bulb {
+  50% { background: #6b5320; box-shadow: none; }
+}
 
 /* Bottom right: the track map over the dash. */
 .dash {
@@ -248,7 +294,7 @@ a:focus-visible, button:focus-visible, summary:focus-visible { outline: 2px soli
   .corner { top: 44%; left: var(--gutter); right: var(--gutter); max-width: none; transform: translateY(-8px); }
   .corner.on { transform: none; }
   .corner .turn { font-size: 20px; }
-  .board-hint kbd, .board-hint .back { display: none; }
+  .board-hint kbd, .board-hint .back, .board-hint .stay { display: none; }
   .dash { left: var(--gutter); bottom: calc(var(--gutter) + 52px); width: auto; }
   #minimap { display: none; }
   .gear { font-size: 52px; }

@@ -22,7 +22,7 @@ export function createInput({ canvas, onCalibrate }) {
 
   const KEYS = ['ArrowUp', 'ArrowDown', 'ArrowLeft', 'ArrowRight', 'KeyW', 'KeyA', 'KeyS', 'KeyD'];
   addEventListener('keydown', (e) => {
-    if (!KEYS.includes(e.code) || e.target.closest?.('input, textarea')) return;
+    if (!KEYS.includes(e.code) || e.target.closest?.('input, textarea, feeling-lucky')) return;
     e.preventDefault();
     keys.add(e.code);
     active('keys');

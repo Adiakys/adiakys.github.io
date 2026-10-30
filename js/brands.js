@@ -12,6 +12,10 @@ const DECO = 'Limelight, Georgia, serif';
 
 export const BOARD = { w: 1600, h: 1000, ad: 820, panel: 0.9 };
 
+// Where the Feeling Lucky board has its casino button, in board pixels: the
+// page lays a real, animated button over it when the camera is there.
+export const LUCKY_BUTTON = { x: 1200, y: 468, w: 310, h: 220 };
+
 // Pictures the painters need, loaded once before the first frame.
 export async function loadBrandImages() {
   const img = new Image();
@@ -158,7 +162,8 @@ const BRANDS = {
       g.fillStyle = '#f1e6c8';
       g.font = `italic 500 54px ${BODY}`;
       g.fillText('Spin the wheel, deal a hand, scratch a card.', 90, 340);
-      info(g, i, stats, { x: 90, w: 1100, ink: '#f1e6c8', dim: '#b9c9ae', accent: '#e8c766', chip: 'rgba(212,175,90,0.18)', foot: 738, right: 1500 });
+      info(g, i, stats, { x: 90, w: 1060, ink: '#f1e6c8', dim: '#b9c9ae', accent: '#e8c766', chip: 'rgba(212,175,90,0.18)', foot: 738, right: 1500 });
+      casinoButton(g, LUCKY_BUTTON);
     },
     hoarding(g) {
       g.fillStyle = '#0d4a33';
@@ -279,6 +284,28 @@ function info(g, i, stats, { x, y = 450, w, ink, dim, accent, chip, mono = false
   g.fillText(i.href.replace(/^https:\/\//, ''), x, foot);
   g.textAlign = 'right';
   g.fillText('Enter to open', right, foot);
+  g.textAlign = 'left';
+}
+
+// Red velvet, a gold rim, a ring of bulbs: the button the page animates.
+function casinoButton(g, { x, y, w, h }) {
+  g.fillStyle = '#7d1720';
+  round(g, x, y, w, h, 22);
+  g.strokeStyle = '#d4af5a';
+  g.lineWidth = 6;
+  g.beginPath(); g.roundRect(x, y, w, h, 22); g.stroke();
+  g.fillStyle = '#ffe9a8';
+  const n = 9;
+  for (let k = 0; k < n; k++) {
+    for (const by of [y + 16, y + h - 16]) { g.beginPath(); g.arc(x + 24 + (k * (w - 48)) / (n - 1), by, 6, 0, Math.PI * 2); g.fill(); }
+  }
+  g.fillStyle = '#e8c766';
+  g.font = `40px ${DECO}`;
+  g.textAlign = 'center';
+  g.fillText('Try your luck', x + w / 2, y + h / 2 + 4, w - 40);
+  g.fillStyle = '#f1e6c8';
+  g.font = `500 26px ${BODY}`;
+  g.fillText('Win a faster car', x + w / 2, y + h / 2 + 46);
   g.textAlign = 'left';
 }
 
