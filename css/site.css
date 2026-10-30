@@ -57,6 +57,7 @@ a { color: inherit; }
 }
 .driver-card p { margin: 4px 0 0; color: var(--dim); font-size: 13px; line-height: 1.35; }
 .driver-card .links { font: 700 12px var(--cond); text-transform: uppercase; letter-spacing: 0.08em; }
+.driver-card .links a + a { margin-left: 10px; }
 
 /* Top left: the timing screen. */
 .timing {
