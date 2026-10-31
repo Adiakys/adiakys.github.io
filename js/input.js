@@ -27,7 +27,10 @@ export function createInput({ canvas, onCalibrate }) {
     keys.add(e.code);
     active('keys');
   });
-  addEventListener('keyup', (e) => keys.delete(e.code));
+  // Idle counts from letting go, not from the last press.
+  addEventListener('keyup', (e) => {
+    if (keys.delete(e.code)) state.lastActive = performance.now();
+  });
   addEventListener('blur', () => keys.clear());
 
   addEventListener('wheel', (e) => {
@@ -130,7 +133,9 @@ export function createInput({ canvas, onCalibrate }) {
       if (p && p.mapping !== 'standard') startCalibration(p);
     },
     hasWheel: () => { const p = pad(); return !!p && p.mapping !== 'standard'; },
-    idle: () => performance.now() - state.lastActive > IDLE_MS,
+    // A key held down is someone driving, even when the system has stopped
+    // repeating it (it only repeats the last key pressed).
+    idle: () => !keys.size && !touches.size && performance.now() - state.lastActive > IDLE_MS,
     scroll() {
       const s = scrollBoost;
       scrollBoost *= 0.96;
