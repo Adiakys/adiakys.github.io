@@ -4,35 +4,45 @@
 //
 // `top` is in km/h, `accel` the seconds from 0 to its own top speed on the
 // flat, `slide` how much a corner pushes it wide (less is more grip). The
-// gearbox: what each gear does at the shift point, the revs.
+// gearbox: what each gear does at the shift point, the revs; the last gear
+// reaches the limiter at top speed. First and second are short, the middle
+// ones medium, the top ones long. `climb` is how fast the dash creeps up the
+// last tenth of top speed, as a share of the real acceleration: the car is
+// already flat out there, but the needle and the revs run to the limiter
+// around the middle of the main straight. `engine` is what the sound is made
+// of: cylinders, and how bright it gets (0..1).
 const FONT = '"Barlow Condensed", "Arial Narrow", sans-serif';
 
 export const CARS = {
   trofeo: {
     name: 'Trofeo hatch', short: 'Trofeo',
-    top: 190, accel: 6, slide: 0.62,
-    gears: [0, 55, 90, 125, 160, 190], idle: 1000, shift: 6800, limiter: 7200,
+    top: 190, accel: 6, slide: 0.62, climb: 0.07,
+    gears: [0, 50, 85, 125, 160, 190], idle: 1000, shift: 6800, limiter: 7200,
+    engine: { cylinders: 4, bright: 0.5 },
     lights: [[112, 150, 58, 30], [470, 150, 58, 30]],
     draw: trofeo,
   },
   superturismo: {
     name: 'Superturismo', short: 'ST',
-    top: 245, accel: 5.5, slide: 0.56,
-    gears: [0, 75, 110, 145, 180, 215, 245], idle: 1200, shift: 8300, limiter: 8600,
+    top: 245, accel: 5.5, slide: 0.56, climb: 0.1,
+    gears: [0, 60, 100, 140, 182, 216, 245], idle: 1200, shift: 8300, limiter: 8600,
+    engine: { cylinders: 6, bright: 0.65 },
     lights: [[80, 142, 480, 20]],
     draw: superturismo,
   },
   gt3: {
     name: 'GT3', short: 'GT3',
-    top: 282, accel: 5.2, slide: 0.52,
-    gears: [0, 95, 135, 170, 205, 245, 282], idle: 1500, shift: 8800, limiter: 9200,
+    top: 282, accel: 5.2, slide: 0.52, climb: 0.115,
+    gears: [0, 70, 115, 162, 207, 248, 282], idle: 1500, shift: 8800, limiter: 9200,
+    engine: { cylinders: 8, bright: 0.75 },
     lights: [[70, 164, 160, 12], [410, 164, 160, 12]],
     draw: gt3,
   },
   f1: {
     name: 'Formula 1', short: 'F1',
-    top: 320, accel: 5, slide: 0.5,
-    gears: [0, 95, 130, 160, 190, 220, 250, 285, 320], idle: 4000, shift: 12000, limiter: 15000,
+    top: 320, accel: 5, slide: 0.5, climb: 0.135,
+    gears: [0, 85, 125, 162, 196, 228, 262, 294, 320], idle: 4000, shift: 12000, limiter: 12200,
+    engine: { cylinders: 6, bright: 1 },
     lights: [[304, 214, 32, 16]],
     draw: formula,
   },

@@ -6,6 +6,8 @@ import { openLucky, luckyOpen } from './lucky.js';
 import { loadBrandImages, paintBoard, BOARD, LUCKY_BUTTON } from './brands.js';
 import { createInput } from './input.js';
 import { SPONSORS, readSponsorInfo } from './sponsors.js';
+import { createEngineSound } from './sound.js';
+import { paintLapCard, CIRCUIT } from './lapcard.js';
 
 const canvas = document.getElementById('track');
 const ctx = canvas.getContext('2d');
@@ -58,7 +60,10 @@ let art;
 const params = new URLSearchParams(location.search);
 const startAt = Number(params.get('at')) || 0;
 const car = { position: (startAt * SEG) % track.length, x: Number(params.get('x')) || 0, speed: 0, bump: 0, holdBrake: 0 };
-const lap = { n: 1, start: 0, last: null, best: readBest(), time: 0, crossedBack: false };
+// `clean` stays true while you drive the whole lap yourself: only those count
+// as a best lap and get a card to share. Starting elsewhere with ?at, the
+// first lap is only part of one.
+const lap = { n: 1, start: 0, last: null, best: readBest(), time: 0, crossedBack: false, clean: !startAt };
 let skyOffset = 0;
 let W = 0, H = 0;
 
@@ -187,6 +192,107 @@ addEventListener('keydown', (e) => {
   if (e.key === 'Enter' && e.target === document.body) openRepo();
 });
 $('recal').addEventListener('click', () => input.recalibrate());
+
+// ---- Sound -------------------------------------------------------------------
+// The engine (sound.js), off until switched on with the button or M; the
+// choice is remembered.
+const engine = createEngineSound();
+const soundButton = $('sound');
+function toggleSound() {
+  engine.toggle();
+  soundButton.textContent = engine.on ? 'Sound on' : 'Sound off';
+  soundButton.setAttribute('aria-pressed', String(engine.on));
+}
+soundButton.addEventListener('click', () => {
+  toggleSound();
+  soundButton.blur();
+});
+addEventListener('keydown', (e) => {
+  if (e.code !== 'KeyM' || e.ctrlKey || e.metaKey || e.altKey || e.target.closest?.('input, textarea, feeling-lucky')) return;
+  toggleSound();
+});
+if (engine.on) {
+  soundButton.textContent = 'Sound on';
+  soundButton.setAttribute('aria-pressed', 'true');
+}
+
+// ---- Start lights ------------------------------------------------------------
+// The race starts from the grid: five red lights, one every half second, then
+// all out after a short wait nobody can guess. Not when the URL puts the car
+// somewhere else on the track.
+const LIGHT_MS = 500;
+const lights = { el: $('lights'), from: 0, out: 0, done: !!startAt };
+
+// True while the car waits on the grid.
+function onGrid(now) {
+  if (lights.done) return false;
+  if (!lights.from) {
+    lights.from = now;
+    lights.out = now + LIGHT_MS * 5 + 300 + Math.random() * 900;
+    lights.el.hidden = false;
+  }
+  const lamps = [...lights.el.children];
+  if (now >= lights.out) {
+    lights.done = true;
+    lamps.forEach((l) => l.classList.remove('on'));
+    lights.el.classList.add('out');
+    setTimeout(() => (lights.el.hidden = true), 1000);
+    return false;
+  }
+  const on = Math.floor((now - lights.from) / LIGHT_MS);
+  lamps.forEach((l, i) => l.classList.toggle('on', i < on));
+  return true;
+}
+
+// ---- Sharing a lap -----------------------------------------------------------
+// A lap you drove yourself, start to finish, ends with its time under the
+// timing screen and a card to share (lapcard.js): through the phone's share
+// sheet where there is one, as a download elsewhere.
+const lapShare = $('lap-share');
+const shot = { pending: null, last: null };
+const canShareFiles = !!navigator.canShare?.({ files: [new File([''], 'lap.png', { type: 'image/png' })] });
+lapShare.querySelector('.share').textContent = canShareFiles ? 'Share lap' : 'Save lap card';
+
+function lapDone(time, best) {
+  shot.pending = { time, best, n: lap.n, car: garage.current };
+}
+
+// Right after the frame the line was crossed in is drawn: keep that frame.
+function keepShot() {
+  const l = shot.pending;
+  shot.pending = null;
+  l.snapshot = document.createElement('canvas');
+  l.snapshot.width = 1200;
+  l.snapshot.height = Math.round((1200 * H) / W);
+  l.snapshot.getContext('2d').drawImage(canvas, 0, 0, l.snapshot.width, l.snapshot.height);
+  shot.last = l;
+  lapShare.querySelector('.what').textContent = l.best ? 'Best lap' : `Lap ${l.n}`;
+  lapShare.querySelector('.time').textContent = fmt(l.time);
+  lapShare.hidden = false;
+}
+
+async function shareLap() {
+  const l = shot.last;
+  const card = paintLapCard({ time: fmt(l.time), best: l.best, carId: l.car, snapshot: l.snapshot, map: track.map });
+  const blob = await new Promise((r) => card.toBlob(r, 'image/png'));
+  const file = new File([blob], `lap-${fmt(l.time).replace(/\D+/g, '-')}.png`, { type: 'image/png' });
+  if (canShareFiles) {
+    const text = `${fmt(l.time)} at the ${CIRCUIT} in the ${CARS[l.car].name}. Can you beat it?`;
+    try { await navigator.share({ files: [file], text, url: 'https://adiakys.github.io/' }); } catch { /* closed the sheet */ }
+    return;
+  }
+  const a = document.createElement('a');
+  a.href = URL.createObjectURL(blob);
+  a.download = file.name;
+  a.click();
+  setTimeout(() => URL.revokeObjectURL(a.href), 1000);
+  toast('Lap card saved');
+}
+lapShare.querySelector('.share').addEventListener('click', (e) => {
+  shareLap();
+  e.currentTarget.blur();
+});
+lapShare.querySelector('.close').addEventListener('click', () => (lapShare.hidden = true));
 
 function resize() {
   const dpr = Math.min(devicePixelRatio || 1, 1.5);
@@ -349,7 +455,7 @@ function autopilot(seg, sp, now, dt) {
   }
   const next = nextBay(seg);
   let aimX = 0;
-  const cruise = reduceMotion && Math.abs(scroll) < 0.05 ? 0 : 0.95 + Math.max(0, scroll) * 0.05;
+  const cruise = reduceMotion && Math.abs(scroll) < 0.05 ? 0 : 1;
   // Brake in time for whatever is coming: v² = v_corner² + 2·a·distance.
   let target = topSpeed() * cruise;
   const n = track.segments.length;
@@ -392,6 +498,18 @@ function update(dt, now) {
   const seg = segAt(car.position + PLAYER_Z);
   const sp = car.speed / MAX_SPEED;
   const auto = input.idle();
+  // On the grid nothing moves; the throttle only revs the engine, and the
+  // autopilot blips it the way drivers do.
+  if (onGrid(now)) {
+    const throttle = auto ? 0.3 + 0.3 * Math.max(0, Math.sin(now / 240)) : input.state.throttle;
+    return { seg, c: { steer: 0, throttle, brake: 0 }, auto, grid: true };
+  }
+  if (auto) lap.clean = false;
+  // Driving a lap the autopilot had a part in: say it doesn't count.
+  if (!auto && !lap.clean && !lap.told) {
+    lap.told = true;
+    toast('Lap invalid: the autopilot drove part of it');
+  }
   // Taking the wheel during a tour stop: the camera stays on the billboard
   // until you drive off, as if you had stopped there yourself.
   if (!auto && tour.stop) {
@@ -459,10 +577,14 @@ function update(dt, now) {
   if (car.speed < 0 && car.position > before) lap.crossedBack = true;
   else if (car.speed >= 0 && car.position < before && lap.crossedBack) lap.crossedBack = false;
   else if (car.speed >= 0 && car.position < before) {
-    if (!auto && (lap.best === null || lap.time < lap.best)) saveBest((lap.best = lap.time));
+    const best = lap.clean && (lap.best === null || lap.time < lap.best);
+    if (best) saveBest((lap.best = lap.time));
+    if (lap.clean) lapDone(lap.time, best);
     lap.last = lap.time;
     lap.time = 0;
     lap.n++;
+    lap.clean = true;
+    lap.told = false;
     tour.visited.clear();
   }
   return { seg, c, auto };
@@ -774,10 +896,31 @@ function cornerBanner(seg, now) {
 }
 
 // Each car's own gearbox (cars.js): shift up at its shift point, keep the
-// revs high on the way down. The F1 has eight gears and a 15,000 limiter but
-// shifts near 12,000, where the fuel-flow limit makes the power.
+// revs high on the way down. The F1 has eight gears and shifts near 12,000,
+// where the fuel-flow limit makes the power; its real 15,000 limiter is never
+// reached, so its last gear tops out at 12,200.
 const gearbox = { gear: 0, rpm: 0 };
+// The engine has inertia: from idle to the shift point takes RPM_RISE seconds
+// at best, the drop after a shift or off the throttle RPM_FALL.
+const RPM_RISE = 0.6;
+const RPM_FALL = 0.35;
 
+// The speed on the dash: the car's own, except in the last tenth of top
+// speed, where it creeps up at the car's `climb` pace (cars.js). Braking, it
+// drops with the car at once. Lap times don't change; the last gear just
+// runs to the limiter along the straight instead of right after the corner.
+const dash = { kmh: 0 };
+
+function dashSpeed(dt) {
+  const real = (Math.abs(car.speed) / MAX_SPEED) * TOP_KMH;
+  if (real <= dash.kmh) return (dash.kmh = real);
+  const f = clamp((dash.kmh / spec.top - 0.8) / 0.1, 0, 1);
+  const slow = f * f * (3 - 2 * f);
+  const rate = (spec.top / spec.accel) * PACE * (1 + (spec.climb - 1) * slow);
+  return (dash.kmh = Math.min(real, dash.kmh + rate * dt));
+}
+
+// Picks the gear and returns the revs the wheels would turn the engine at.
 function shift(kmh, throttle) {
   const tops = spec.gears, last = tops.length - 1;
   let g = clamp(gearbox.gear, 0, last);
@@ -786,7 +929,8 @@ function shift(kmh, throttle) {
   if (g > 1 && kmh < tops[g - 1] * 0.9) g--;
   if (kmh < 1 && throttle === 0) g = 0;
   gearbox.gear = g;
-  gearbox.rpm = g ? clamp((spec.shift * kmh) / tops[g], spec.idle, spec.limiter) : spec.idle;
+  const at = g === last ? spec.limiter : spec.shift;
+  return g ? clamp((at * kmh) / tops[g], spec.idle, spec.limiter) : spec.idle;
 }
 
 const revs = $('revs');
@@ -794,15 +938,30 @@ revs.innerHTML = '<i></i>'.repeat(15);
 const fmt = (t) => (t === null ? '–:––.–' : `${Math.floor(t / 60)}:${(t % 60).toFixed(1).padStart(4, '0')}`);
 let hudTick = 0;
 
-function hud(auto, c) {
-  const kmh = (Math.abs(car.speed) / MAX_SPEED) * TOP_KMH;
-  shift(kmh, c.throttle);
+function hud(auto, c, grid, dt) {
+  const kmh = dashSpeed(dt);
+  let target = shift(kmh, c.throttle);
+  // Pulling away in first, the clutch slips: the throttle holds the revs up.
+  if (gearbox.gear === 1) target = Math.max(target, spec.idle + c.throttle * (spec.shift - spec.idle) * 0.6);
+  // On the grid, in neutral, the throttle alone revs it.
+  if (grid) {
+    gearbox.gear = 0;
+    target = spec.idle + c.throttle * (spec.shift - spec.idle) * 0.75;
+  }
   // Reverse has one gear, a bit shorter than first.
-  if (car.speed < 0) Object.assign(gearbox, { gear: -1, rpm: clamp((spec.shift * kmh) / (spec.gears[1] * 0.7), spec.idle, spec.limiter) });
+  if (car.speed < 0) {
+    gearbox.gear = -1;
+    target = clamp((spec.shift * kmh) / (spec.gears[1] * 0.7), spec.idle, spec.limiter);
+  }
+  const rpm = gearbox.rpm || spec.idle;
+  const span = (spec.shift - spec.idle) * dt;
+  gearbox.rpm = approach(rpm, target, target > rpm ? span / RPM_RISE : span / RPM_FALL);
   // Like the wheel's LEDs: they start a sixth below the shift point and are all lit at it.
-  const from = spec.shift * 0.83;
-  const lit = Math.round(clamp((gearbox.rpm - from) / (spec.shift * 0.98 - from), 0, 1) * 15);
-  revs.classList.toggle('limit', gearbox.rpm >= spec.shift * 0.98 && gearbox.gear < spec.gears.length - 1);
+  // In the last gear there is nothing to shift to: they fill up to the limiter.
+  const point = gearbox.gear === spec.gears.length - 1 ? spec.limiter : spec.shift;
+  const from = point * 0.83;
+  const lit = Math.round(clamp((gearbox.rpm - from) / (point * 0.98 - from), 0, 1) * 15);
+  revs.classList.toggle('limit', gearbox.rpm >= point * 0.98);
   [...revs.children].forEach((led, i) => led.classList.toggle('on', i < lit));
   if (++hudTick % 4) return;
   $('gear').textContent = gearbox.gear < 0 ? 'R' : gearbox.gear || 'N';
@@ -810,6 +969,8 @@ function hud(auto, c) {
   $('rpm').textContent = Math.round(gearbox.rpm / 100) * 100;
   $('lap').textContent = lap.n;
   $('lap-time').textContent = fmt(lap.time);
+  // Red while you drive a lap that doesn't count.
+  $('lap-time').classList.toggle('invalid', !lap.clean && !auto);
   $('lap-last').textContent = fmt(lap.last);
   $('lap-best').textContent = fmt(lap.best);
   const s = input.state;
@@ -818,10 +979,10 @@ function hud(auto, c) {
 }
 
 function readBest() {
-  try { return JSON.parse(localStorage.getItem('best-lap-langhe')); } catch { return null; }
+  try { return JSON.parse(localStorage.getItem('best-lap-langhe-2')); } catch { return null; }
 }
 function saveBest(t) {
-  try { localStorage.setItem('best-lap-langhe', JSON.stringify(t)); } catch { /* private mode */ }
+  try { localStorage.setItem('best-lap-langhe-2', JSON.stringify(t)); } catch { /* private mode */ }
 }
 
 // ---- Loop -------------------------------------------------------------------
@@ -835,6 +996,7 @@ function frame(now) {
   if (luckyOpen()) {
     if (!casinoSince) {
       casinoSince = now;
+      engine.pause(true);
       document.body.classList.add('casino');
       placeLuckyButton();
     }
@@ -849,17 +1011,20 @@ function frame(now) {
   }
   const dt = Math.min(0.05, (now - last) / 1000);
   last = now;
-  const { seg, c, auto } = update(dt, now);
+  const { seg, c, auto, grid } = update(dt, now);
   const zoom = (zoomEase = zoomStep(dt));
   if (view.m) ctx.setTransform(view.m.S, 0, 0, view.m.S, view.m.tx, view.m.ty);
   drawRoad();
   if (zoom < 0.4) drawCar(c);
   ctx.setTransform(1, 0, 0, 1, 0, 0);
+  if (shot.pending) keepShot();
   placeLuckyButton();
   tourCountdown(now);
   drawMinimap();
   cornerBanner(seg, now);
-  hud(auto, c);
+  hud(auto, c, grid, dt);
+  engine.pause(!!view.bay && view.dir > 0);
+  engine.update(gearbox.rpm, c.throttle, spec);
   requestAnimationFrame(frame);
 }
 

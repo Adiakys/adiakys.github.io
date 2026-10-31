@@ -79,8 +79,57 @@ a { color: inherit; }
 .timing dt { align-self: center; }
 .timing dd { margin: 0; text-align: right; font: 600 18px var(--cond); }
 .timing dd#lap-time { font-weight: 800; font-size: 22px; }
+.timing dd#lap-time.invalid { color: #ff3b2f; }
 .driver { margin: 8px 0 0; font: 600 13px var(--cond); text-transform: uppercase; letter-spacing: 0.1em; color: var(--accent); }
-.driver button, .cal button {
+.sound { margin: 6px 0 0; display: flex; align-items: center; gap: 8px; }
+.sound kbd { padding: 0 5px; border: 1px solid rgba(242, 240, 234, 0.25); font: 600 11px var(--cond); color: var(--dim); }
+.timing .sound button { margin-left: 0; color: var(--dim); }
+.timing .sound button[aria-pressed="true"] { color: var(--ink); border-color: var(--accent); }
+
+/* Under the times, after a lap you drove: the time and a way to share it. */
+.lap-share {
+  position: relative;
+  margin: 10px -16px -10px -20px;
+  padding: 8px 16px 10px 20px;
+  border-top: 1px solid rgba(242, 240, 234, 0.12);
+}
+.lap-share[hidden] { display: none; }
+.lap-share p { margin: 0 0 6px; font: 600 13px var(--cond); text-transform: uppercase; letter-spacing: 0.1em; color: var(--accent); }
+.lap-share .time { font: 800 18px var(--cond); color: var(--ink); letter-spacing: 0; }
+.lap-share .share {
+  font: 800 15px var(--cond);
+  text-transform: uppercase;
+  letter-spacing: 0.08em;
+  color: #14110f;
+  background: var(--accent);
+  border: 0;
+  padding: 5px 12px;
+  cursor: pointer;
+}
+.lap-share .share:hover { background: #ff7a45; }
+.lap-share .close { position: absolute; top: 4px; right: 8px; padding: 0 4px; border: 0; margin: 0; font-size: 18px; line-height: 1; color: var(--dim); background: none; }
+
+/* The start lights, over the grid: five lamps that come on red and go out. */
+.lights {
+  position: fixed;
+  top: 16vh;
+  left: 50%;
+  transform: translateX(-50%);
+  display: flex;
+  gap: 10px;
+  padding: 12px;
+  background: #121316;
+  border-radius: 6px;
+  box-shadow: 0 8px 24px rgba(0, 0, 0, 0.35);
+  transition: opacity 0.6s;
+}
+.lights[hidden] { display: none; }
+.lights.out { opacity: 0; }
+.lights i { display: flex; flex-direction: column; gap: 8px; padding: 8px; background: #202126; border-radius: 6px; }
+.lights i::before, .lights i::after { content: ""; width: 34px; height: 34px; border-radius: 50%; background: #3a1210; }
+.lights i.on::before, .lights i.on::after { background: #ff2a1a; box-shadow: 0 0 18px #ff2a1a; }
+
+.driver button, .sound button, .cal button {
   font: 700 12px var(--cond);
   text-transform: uppercase;
   letter-spacing: 0.1em;
@@ -356,6 +405,11 @@ a:focus-visible, button:focus-visible, summary:focus-visible { outline: 2px soli
   .timing dt:not(:first-of-type), .timing dd:not(#lap-time) { display: none; }
   .timing dd#lap-time { font-size: 18px; }
   .driver { margin: 0 0 0 auto; font-size: 11px; }
+  .sound { margin: 0; }
+  .sound kbd { display: none; }
+  .lap-share { position: absolute; top: calc(100% + 6px); left: 0; right: 0; margin: 0; background: var(--panel); border-left: 4px solid var(--accent); }
+  .lights { top: 30vh; }
+  .lights i::before, .lights i::after { width: 24px; height: 24px; }
   .corner { top: 44%; left: var(--gutter); right: var(--gutter); max-width: none; transform: translateY(-8px); }
   .corner.on { transform: none; }
   .corner .turn { font-size: 20px; }

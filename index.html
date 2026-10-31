@@ -51,7 +51,15 @@
     <dt>Best</dt><dd id="lap-best">–</dd>
   </dl>
   <p class="driver"><span id="driver">Autopilot</span> <button id="recal" type="button" hidden>Recalibrate</button></p>
+  <p class="sound"><button id="sound" type="button" aria-pressed="false">Sound off</button> <kbd>M</kbd></p>
+  <div id="lap-share" class="lap-share" hidden>
+    <p><span class="what"></span> <b class="time"></b></p>
+    <button type="button" class="share">Share lap</button>
+    <button type="button" class="close" aria-label="Close">&times;</button>
+  </div>
 </section>
+
+<div id="lights" class="lights" aria-hidden="true" hidden><i></i><i></i><i></i><i></i><i></i></div>
 
 <div id="corner" class="corner">
   <p class="turn"><span class="number"></span> <span class="name"></span></p>
