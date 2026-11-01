@@ -26,20 +26,102 @@
   "@graph": [
     {
       "@type": "WebSite",
+      "@id": "https://adiakys.github.io/#website",
       "name": "Adiakys",
       "alternateName": "Andrea Ficarra",
-      "url": "https://adiakys.github.io/"
+      "url": "https://adiakys.github.io/",
+      "author": {
+        "@id": "https://adiakys.github.io/#person"
+      }
     },
     {
       "@type": "Person",
+      "@id": "https://adiakys.github.io/#person",
       "name": "Andrea Ficarra",
       "alternateName": "Adiakys",
       "jobTitle": "Senior Software Developer",
-      "worksFor": { "@type": "Organization", "name": "Sirius s.r.l." },
-      "address": { "@type": "PostalAddress", "addressLocality": "Torino", "addressCountry": "IT" },
-      "knowsAbout": ["C#", ".NET", "Rust"],
+      "worksFor": {
+        "@type": "Organization",
+        "name": "Sirius s.r.l."
+      },
+      "address": {
+        "@type": "PostalAddress",
+        "addressLocality": "Torino",
+        "addressCountry": "IT"
+      },
+      "knowsAbout": [
+        "C#",
+        ".NET",
+        "Rust"
+      ],
       "url": "https://adiakys.github.io/",
-      "sameAs": ["https://github.com/Adiakys"]
+      "sameAs": [
+        "https://github.com/Adiakys"
+      ]
+    },
+    {
+      "@type": "SoftwareSourceCode",
+      "name": "SimRig",
+      "description": "Sim-racing wheels, pedals and shifters on Linux, any brand: installs the drivers and keeps them working in every game.",
+      "programmingLanguage": "Rust",
+      "codeRepository": "https://github.com/Adiakys/SimRig",
+      "author": {
+        "@id": "https://adiakys.github.io/#person"
+      },
+      "url": "https://adiakys.github.io/SimRig/"
+    },
+    {
+      "@type": "SoftwareSourceCode",
+      "name": "OtlpDashboard",
+      "description": "Self-hosted OpenTelemetry receiver and dashboard for traces, logs and metrics.",
+      "programmingLanguage": "C#",
+      "codeRepository": "https://github.com/Adiakys/OtlpDashboard",
+      "author": {
+        "@id": "https://adiakys.github.io/#person"
+      },
+      "url": "https://adiakys.github.io/OtlpDashboard/"
+    },
+    {
+      "@type": "SoftwareSourceCode",
+      "name": "AnyMediator",
+      "description": "A free, Apache-2.0 mediator for .NET with a MediatR-compatible API.",
+      "programmingLanguage": "C#",
+      "codeRepository": "https://github.com/Adiakys/AnyMediator",
+      "author": {
+        "@id": "https://adiakys.github.io/#person"
+      },
+      "url": "https://adiakys.github.io/AnyMediator/"
+    },
+    {
+      "@type": "SoftwareSourceCode",
+      "name": "feeling-lucky",
+      "description": "Casino games and a prize wheel for any web app, with prizes you configure.",
+      "programmingLanguage": "TypeScript",
+      "codeRepository": "https://github.com/Adiakys/feeling-lucky",
+      "author": {
+        "@id": "https://adiakys.github.io/#person"
+      },
+      "url": "https://adiakys.github.io/feeling-lucky/"
+    },
+    {
+      "@type": "SoftwareSourceCode",
+      "name": "claude-vision",
+      "description": "Lets Claude Code see your screen or webcam.",
+      "programmingLanguage": "Python",
+      "codeRepository": "https://github.com/Adiakys/claude-vision",
+      "author": {
+        "@id": "https://adiakys.github.io/#person"
+      }
+    },
+    {
+      "@type": "SoftwareSourceCode",
+      "name": "GoogleLimitedInputAuth.Net",
+      "description": "Google sign-in for devices without a keyboard.",
+      "programmingLanguage": "C#",
+      "codeRepository": "https://github.com/Adiakys/GoogleLimitedInputAuth.Net",
+      "author": {
+        "@id": "https://adiakys.github.io/#person"
+      }
     }
   ]
 }
