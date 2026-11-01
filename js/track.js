@@ -15,7 +15,7 @@ const CORNERS = [
   [660, 0, 10, 'Tornante SimRig', 'simrig'],
   [690, 55, 10],
   [600, 70, 40],
-  [520, 120, 55, 'Esse OpenMediatR', 'mediatr'],
+  [520, 120, 55, 'Esse AnyMediator', 'mediatr'],
   [430, 120, 35],
   [400, 175, 18, 'Curva del Borgo'],
   [330, 190, 9, 'Variante OTLP', 'otlp'],
@@ -37,7 +37,7 @@ const CORNERS = [
 const HEIGHTS = {
   'Curvone Vision': 6,
   'Tornante SimRig': 0,
-  'Esse OpenMediatR': 10,
+  'Esse AnyMediator': 10,
   'Curva del Borgo': 16,
   'Variante OTLP': 21,
   'Dosso Feeling Lucky': 27,

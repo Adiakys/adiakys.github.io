@@ -121,7 +121,7 @@ const BRANDS = {
       mediator(g, 300, 200, 1.05);
       g.fillStyle = '#1b2f6b';
       g.font = `800 136px ${BODY}`;
-      g.fillText('OpenMediatR', 610, 248);
+      g.fillText('AnyMediator', 610, 248);
       g.fillStyle = '#1e95cc';
       g.font = `600 52px ${BODY}`;
       g.fillText('Requests in, handlers out. Free, Apache 2.0.', 64, 400);
@@ -133,7 +133,7 @@ const BRANDS = {
       mediator(g, 120, 75, 0.48);
       g.fillStyle = '#1b2f6b';
       g.font = `800 84px ${BODY}`;
-      g.fillText('OpenMediatR', 260, 106);
+      g.fillText('AnyMediator', 260, 106);
     },
   },
 
@@ -351,7 +351,7 @@ function logoLines(g, x, y, k, ink, hot) {
   g.beginPath(); g.arc(x + 54 * k, y + 20 * k, 9 * k, 0, Math.PI * 2); g.fill();
 }
 
-// OpenMediatR's mark: a hexagon with an M, a request in, a response out.
+// AnyMediator's mark: a hexagon with an M, a request in, a response out.
 function mediator(g, cx, cy, k) {
   const hex = (r) => {
     g.beginPath();
